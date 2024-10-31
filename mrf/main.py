@@ -1,0 +1,16 @@
+import utilities.command_line as line
+from mrf.modules.reconstruction_handler import ReconstructionHandler
+
+print("Microservice Reconstruction Framework")
+print("Reconstruction: Start!")
+
+args = line.handle_parameters()
+plugins = line.args_to_plugins(args)
+files = line.load_files(args.target)
+source_files = line.files_to_source_files(files)
+hdl = ReconstructionHandler(source_files, plugins)
+test = hdl.reconstruct_start()
+
+print("hdl")
+
+print("Reconstruction:  End!")
