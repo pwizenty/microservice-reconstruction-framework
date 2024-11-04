@@ -1,7 +1,7 @@
 from enum import Enum
 
 import javalang as java_lang
-from javalang.tree import CompilationUnit, ClassDeclaration, FieldDeclaration
+from javalang.tree import CompilationUnit, ClassDeclaration, FieldDeclaration, Annotation
 
 from mrf.utilities.sping import APPLICATION_CLASS
 
@@ -33,21 +33,26 @@ def get_class_from_tree(unit: CompilationUnit):
     return classes[0] if classes else None
 
 
-def has_annotation(clazz: ClassDeclaration, annotation_name):
-    annotation = find_annotation(clazz, annotation_name)
-    if annotation is not None:
-        return True
-    else:
-        return False
-
-
-def find_annotation(clazz: ClassDeclaration, annotation_name):
+def has_annotation_for_class(clazz: ClassDeclaration, annotation_name):
     if hasattr(clazz, "annotations"):
-        annotation = [an for an in clazz.annotations if hasattr(an, "name") and getattr(an, "name") == annotation_name]
+        annotation = find_annotation(clazz.annotations, annotation_name)
         if annotation is not None:
-            return annotation[0] if annotation else None
-    else:
-        return None
+            return True
+        else:
+            return False
+
+
+def has_annotation_for_field(field: FieldDeclaration, annotation_name):
+    if hasattr(field, "annotations"):
+        annotation = find_annotation(field.annotations, annotation_name)
+        if annotation is not None:
+            return True
+        else:
+            return False
+
+
+def find_annotation(annotations: list[Annotation], annotation_name):
+    return next((an for an in annotations if hasattr(an, "name") and getattr(an, "name") == annotation_name), None)
 
 
 def get_class_name(clazz: ClassDeclaration):

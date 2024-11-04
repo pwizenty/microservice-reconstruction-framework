@@ -7,10 +7,10 @@ from mrf.plugins.data.domain_data import Context, DataStructure, DDD_ENTITY, Pri
     ClassType
 from mrf.plugins.reconstruction_plugin import Plugin
 from mrf.utilities.command_line import SourceFile
-from mrf.utilities.java_utils import parse_java_file, has_annotation, get_class_from_tree, get_class_name, \
+from mrf.utilities.java_utils import parse_java_file, has_annotation_for_class, get_class_from_tree, get_class_name, \
     get_qualified_class_name, PRIMITIVE_JAVA_TYPES, get_field_name, match_context, resolve_complex_field, \
-    DependencyType, ImportType
-from mrf.utilities.sping import CONTEXT_ANNOTATION, APPLICATION_CLASS, ENTITY_ANNOTATION
+    DependencyType, ImportType, has_annotation_for_field
+from mrf.utilities.sping import CONTEXT_ANNOTATION, APPLICATION_CLASS, ENTITY_ANNOTATION, ID_ANNOTATION
 from mrf.utilities.sping import INFRASTRUCTURE_TECHNOLOGIES
 
 
@@ -46,7 +46,7 @@ class JavaPlugin(Plugin):
 
     def __reconstruct_context(self, java_class: JavaClassArtefact):
         clazz = get_class_from_tree(java_class.tree)
-        if has_annotation(clazz, CONTEXT_ANNOTATION):
+        if has_annotation_for_class(clazz, CONTEXT_ANNOTATION):
             name = get_class_name(clazz).removesuffix(APPLICATION_CLASS)
             # Check if context is related to a Spring infrastructure technology
             if any(t in name.lower() for t in INFRASTRUCTURE_TECHNOLOGIES):
@@ -61,7 +61,7 @@ class JavaPlugin(Plugin):
 
     def __reconstruct_entity(self, java_class: JavaClassArtefact):
         clazz = get_class_from_tree(java_class.tree)
-        if has_annotation(clazz, ENTITY_ANNOTATION):
+        if has_annotation_for_class(clazz, ENTITY_ANNOTATION):
             structure = self.__reconstruct_data_structure(java_class)
             data = Data(DDD_ENTITY)
             structure.data.append(data)
@@ -88,6 +88,10 @@ class JavaPlugin(Plugin):
                 field_name = get_field_name(f)
                 primitive_type = PrimitiveType(field_type)
                 field = Field(field_name, primitive_type)
+
+                if has_annotation_for_field(f, ID_ANNOTATION):
+                    data = Data(ID_ANNOTATION)
+                    field.data.append(data)
                 primitive_fields.append(field)
         return primitive_fields
 
@@ -98,13 +102,10 @@ class JavaPlugin(Plugin):
         for f in clazz.fields:
             if hasattr(f, "type") and f.type.name.lower() not in PRIMITIVE_JAVA_TYPES:
                 result = resolve_complex_field(java_class.tree, f.type.name)
-                match result.dependency_type:
-                    case DependencyType.PROJECT_DEPENDENCY :
-                        self.__handle_project_dependency(result.qualified_import_name)
-                    case DependencyType.PACKAGE_DEPENDENCY :
-                        self.__handle_package_dependency(result.qualified_import_name)
-                    case DependencyType.EXTERNAL_DEPENDENCY :
-                        self.__handle_external_dependency(result.qualified_import_name)
+                complex_type = self.__handle_dependency(result)
+                field_name = get_field_name(f)
+                field = Field(field_name, complex_type)
+                complex_fields.append(field)
         return complex_fields
 
     def __find_context_name(self, qualified_name: str):
@@ -128,13 +129,15 @@ class JavaPlugin(Plugin):
             pass
 
     def __handle_dependency(self, import_type: ImportType):
+        complex_type = None
         match import_type.dependency_type:
             case DependencyType.PROJECT_DEPENDENCY:
-                return self.__handle_project_dependency(import_type.qualified_import_name)
+                complex_type =  self.__handle_project_dependency(import_type.qualified_import_name)
             case DependencyType.PACKAGE_DEPENDENCY:
-                return self.__handle_package_dependency(import_type.qualified_import_name)
+                complex_type = self.__handle_package_dependency(import_type.qualified_import_name)
             case DependencyType.EXTERNAL_DEPENDENCY:
-                return self.__handle_external_dependency(import_type.qualified_import_name)
+                complex_type = self.__handle_external_dependency(import_type.qualified_import_name)
+        return complex_type
 
     def __handle_project_dependency(self, import_name: str):
         exist = self.__check_for_Dependency(import_name)
