@@ -3,11 +3,13 @@ from typing import List
 from javalang.tree import CompilationUnit, FieldDeclaration
 
 from mrf.plugins.common.common_plugin import Data
-from mrf.plugins.data.domain_data import Context, DataStructure, DDD_ENTITY, PrimitiveType, Field
+from mrf.plugins.data.domain_data import Context, DataStructure, DDD_ENTITY, PrimitiveType, Field, ComplexType, \
+    ClassType
 from mrf.plugins.reconstruction_plugin import Plugin
 from mrf.utilities.command_line import SourceFile
 from mrf.utilities.java_utils import parse_java_file, has_annotation, get_class_from_tree, get_class_name, \
-    get_qualified_class_name, PRIMITIVE_JAVA_TYPES, get_field_name, match_context
+    get_qualified_class_name, PRIMITIVE_JAVA_TYPES, get_field_name, match_context, resolve_complex_field, \
+    DependencyType, ImportType
 from mrf.utilities.sping import CONTEXT_ANNOTATION, APPLICATION_CLASS, ENTITY_ANNOTATION
 from mrf.utilities.sping import INFRASTRUCTURE_TECHNOLOGIES
 
@@ -31,7 +33,7 @@ class JavaPlugin(Plugin):
         for c in self.java_classes:
             self.__reconstruct_context(c)
         for c in self.java_classes:
-            self.__reconstruct_data_structure(c)
+            self.__reconstruct_entity(c)
 
         return "Execute Reconstruction - Java Plugin"
 
@@ -57,18 +59,26 @@ class JavaPlugin(Plugin):
             context = Context(qualified_name, name, java_class.path)
             self.contexts.append(context)
 
-    def __reconstruct_data_structure(self, java_class: JavaClassArtefact):
+    def __reconstruct_entity(self, java_class: JavaClassArtefact):
         clazz = get_class_from_tree(java_class.tree)
         if has_annotation(clazz, ENTITY_ANNOTATION):
-            name = get_class_name(clazz)
-            qualified_name = get_qualified_class_name(java_class.tree)
-            structure = DataStructure(qualified_name, name, java_class.path)
+            structure = self.__reconstruct_data_structure(java_class)
             data = Data(DDD_ENTITY)
             structure.data.append(data)
-            primitive_fields = self.__reconstruct_primitive_type(clazz.fields)
-            structure.fields.extend(primitive_fields)
-            context_name = self.__find_context_name(qualified_name)
-            self.__assign_to_structure_to_context(structure, context_name)
+            context_name = self.__find_context_name(structure.qualified_name)
+            context = next((c for c in self.contexts if c.qualified_name == context_name), None)
+            context.data_structures.append(structure)
+
+    def __reconstruct_data_structure(self, java_class: JavaClassArtefact):
+        clazz = get_class_from_tree(java_class.tree)
+        name = get_class_name(clazz)
+        qualified_name = get_qualified_class_name(java_class.tree)
+        structure = DataStructure(qualified_name, name, java_class.path)
+        primitive_fields = self.__reconstruct_primitive_type(clazz.fields)
+        complex_fields = self.__reconstruct_complex_type(java_class)
+        structure.fields.extend(primitive_fields)
+        structure.fields.extend(complex_fields)
+        return structure
 
     def __reconstruct_primitive_type(self, field_declarations: [FieldDeclaration]):
         primitive_fields: List[Field] = []
@@ -80,6 +90,22 @@ class JavaPlugin(Plugin):
                 field = Field(field_name, primitive_type)
                 primitive_fields.append(field)
         return primitive_fields
+
+    def __reconstruct_complex_type(self, java_class: JavaClassArtefact):
+        complex_fields: List[Field] = []
+        clazz = get_class_from_tree(java_class.tree)
+
+        for f in clazz.fields:
+            if hasattr(f, "type") and f.type.name.lower() not in PRIMITIVE_JAVA_TYPES:
+                result = resolve_complex_field(java_class.tree, f.type.name)
+                match result.dependency_type:
+                    case DependencyType.PROJECT_DEPENDENCY :
+                        self.__handle_project_dependency(result.qualified_import_name)
+                    case DependencyType.PACKAGE_DEPENDENCY :
+                        self.__handle_package_dependency(result.qualified_import_name)
+                    case DependencyType.EXTERNAL_DEPENDENCY :
+                        self.__handle_external_dependency(result.qualified_import_name)
+        return complex_fields
 
     def __find_context_name(self, qualified_name: str):
         match_parts = []
@@ -93,11 +119,50 @@ class JavaPlugin(Plugin):
         else:
             return None
 
-    def __assign_to_structure_to_context(self, data_structure: DataStructure, context_name):
+    def __assign_structure_to_context(self, data_structure: DataStructure, context_name):
         if context_name is not None:
             context = next((context for context in self.contexts if context.qualified_name == context_name), None)
             context.data_structures.append(data_structure)
-            print()
         else:
             # TODO: Handling function to support DataStructures without context. 
             pass
+
+    def __handle_dependency(self, import_type: ImportType):
+        match import_type.dependency_type:
+            case DependencyType.PROJECT_DEPENDENCY:
+                return self.__handle_project_dependency(import_type.qualified_import_name)
+            case DependencyType.PACKAGE_DEPENDENCY:
+                return self.__handle_package_dependency(import_type.qualified_import_name)
+            case DependencyType.EXTERNAL_DEPENDENCY:
+                return self.__handle_external_dependency(import_type.qualified_import_name)
+
+    def __handle_project_dependency(self, import_name: str):
+        exist = self.__check_for_Dependency(import_name)
+        if exist is False:
+            class_name = import_name.split(".").pop()
+            java_class = next((java for java in self.java_classes if java.path.endswith(class_name + ".java")), None)
+            structure = self.__reconstruct_data_structure(java_class)
+            context_name = self.__find_context_name(structure.qualified_name)
+            context = next((c for c in self.contexts if c.qualified_name == context_name), None)
+            context.data_structures.append(structure)
+            complex_type = ComplexType(structure.qualified_name, structure.name, ClassType.DATA_STRUCTURE)
+            return complex_type
+
+    def __handle_package_dependency(self, import_name: str):
+        # TODO: May need to be adapted, when we don't map a microservice to exactly one context
+        return self.__handle_project_dependency(import_name)
+
+    def __handle_external_dependency(self, import_name: str):
+        complex_type = ComplexType(import_name, import_name.split(".").pop(), ClassType.UNSPECIFIED)
+        return complex_type
+
+    def __check_for_Dependency(self, import_name: str):
+        context_name = self.__find_context_name(import_name)
+        data_structure_name = import_name.split(".").pop()
+        qualified_name = context_name + "." + data_structure_name.lower()
+        context = next((c for c in self.contexts if c.qualified_name == context_name), None)
+        struct = next((s for s in context.data_structures if s.qualified_name == qualified_name), None)
+        if struct is not None:
+            return True
+        else:
+            return False

@@ -5,6 +5,7 @@ from mrf.plugins.common.common_plugin import Data
 
 DDD_ENTITY = "Entity"
 
+
 class DomainData:
     def __init__(self):
         self.context = []
@@ -21,6 +22,7 @@ class Context:
         self.enums: List[Enumeration] = []
         self.data: List[Data] = []
 
+
 class DataStructure:
     def __init__(self, qualified_name, name, origin_file):
         self.qualified_name = qualified_name
@@ -29,11 +31,13 @@ class DataStructure:
         self.fields: List[Field] = []
         self.data: List[Data] = []
 
+
 class Field:
     def __init__(self, name, field_type):
         self.name = name
         self.field_type = field_type
         self.data: List[Data] = []
+
 
 class ComplexType:
     def __init__(self, qualified_name, name, complex_type):
@@ -41,16 +45,19 @@ class ComplexType:
         self.name = name
         self.complex_type = complex_type
 
+
 class PrimitiveType:
     def __init__(self, name):
         self.name = name
+
 
 class Enumeration:
     def __init__(self, name):
         self.name = name
 
+
 class ClassType(Enum):
-    Collection = "COLLECTION"
-    Enum = "ENUM"
-    Data_Structure = "DATA_STRUCTURE"
-    Unspecified = "UNSPECIFIED"
+    COLLECTION = "COLLECTION"
+    ENUM = "ENUM"
+    DATA_STRUCTURE = "DATA_STRUCTURE"
+    UNSPECIFIED = "UNSPECIFIED"
