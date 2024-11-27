@@ -9,7 +9,8 @@ plugins = line.args_to_plugins(args)
 files = line.load_files(args.target)
 source_files = line.files_to_source_files(files)
 hdl = ReconstructionHandler(source_files, plugins)
-test = hdl.reconstruct_start()
+hdl.reconstruct_start()
+hdl.reconstruct_save()
 
 print("hdl")
 

@@ -1,4 +1,11 @@
+# Core function dependencies
 pandas
 argparse
 javalang
 pathlib
+pymongo
+pyyaml
+dataclasses
+
+# Testing dependencies
+deepdiff

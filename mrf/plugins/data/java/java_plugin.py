@@ -4,13 +4,13 @@ from javalang.tree import CompilationUnit, FieldDeclaration
 
 from mrf.plugins.common.common_plugin import Data
 from mrf.plugins.data.domain_data import Context, DataStructure, DDD_ENTITY, PrimitiveType, Field, ComplexType, \
-    ClassType
+    ClassType, DDD_IDENTIFIER
 from mrf.plugins.reconstruction_plugin import Plugin
 from mrf.utilities.command_line import SourceFile
 from mrf.utilities.java_utils import parse_java_file, has_annotation_for_class, get_class_from_tree, get_class_name, \
     get_qualified_class_name, PRIMITIVE_JAVA_TYPES, get_field_name, match_context, resolve_complex_field, \
     DependencyType, ImportType, has_annotation_for_field
-from mrf.utilities.sping import CONTEXT_ANNOTATION, APPLICATION_CLASS, ENTITY_ANNOTATION, ID_ANNOTATION
+from mrf.utilities.sping import CONTEXT_ANNOTATION, APPLICATION_CLASS, ENTITY_ANNOTATION, ID_ANNOTATIONS
 from mrf.utilities.sping import INFRASTRUCTURE_TECHNOLOGIES
 
 
@@ -35,7 +35,7 @@ class JavaPlugin(Plugin):
         for c in self.java_classes:
             self.__reconstruct_entity(c)
 
-        return "Execute Reconstruction - Java Plugin"
+        return self.contexts
 
     def __load_classes(self, source_files: list[SourceFile]):
         for s in source_files:
@@ -84,13 +84,13 @@ class JavaPlugin(Plugin):
         primitive_fields: List[Field] = []
         for f in field_declarations:
             if f.type.name.lower() in PRIMITIVE_JAVA_TYPES:
-                field_type = f.type.name
+                field_type = f.type.name.lower()
                 field_name = get_field_name(f)
                 primitive_type = PrimitiveType(field_type)
                 field = Field(field_name, primitive_type)
 
-                if has_annotation_for_field(f, ID_ANNOTATION):
-                    data = Data(ID_ANNOTATION)
+                if has_annotation_for_field(f, ID_ANNOTATIONS):
+                    data = Data(DDD_IDENTIFIER)
                     field.data.append(data)
                 primitive_fields.append(field)
         return primitive_fields
@@ -105,6 +105,9 @@ class JavaPlugin(Plugin):
                 complex_type = self.__handle_dependency(result)
                 field_name = get_field_name(f)
                 field = Field(field_name, complex_type)
+                if has_annotation_for_field(f, ID_ANNOTATIONS):
+                    data = Data(DDD_IDENTIFIER)
+                    field.data.append(data)
                 complex_fields.append(field)
         return complex_fields
 
@@ -140,7 +143,7 @@ class JavaPlugin(Plugin):
         return complex_type
 
     def __handle_project_dependency(self, import_name: str):
-        exist = self.__check_for_Dependency(import_name)
+        exist = self.__check_for_dependency(import_name)
         if exist is False:
             class_name = import_name.split(".").pop()
             java_class = next((java for java in self.java_classes if java.path.endswith(class_name + ".java")), None)
@@ -159,7 +162,7 @@ class JavaPlugin(Plugin):
         complex_type = ComplexType(import_name, import_name.split(".").pop(), ClassType.UNSPECIFIED)
         return complex_type
 
-    def __check_for_Dependency(self, import_name: str):
+    def __check_for_dependency(self, import_name: str):
         context_name = self.__find_context_name(import_name)
         data_structure_name = import_name.split(".").pop()
         qualified_name = context_name + "." + data_structure_name.lower()

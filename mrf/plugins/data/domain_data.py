@@ -4,6 +4,7 @@ from typing import List
 from mrf.plugins.common.common_plugin import Data
 
 DDD_ENTITY = "Entity"
+DDD_IDENTIFIER = "Identifier"
 
 
 class DomainData:
@@ -12,6 +13,11 @@ class DomainData:
         self.data_structures = []
         self.enums = []
 
+class ClassType(Enum):
+    COLLECTION = "COLLECTION"
+    ENUM = "ENUM"
+    DATA_STRUCTURE = "DATA_STRUCTURE"
+    UNSPECIFIED = "UNSPECIFIED"
 
 class Context:
     def __init__(self, qualified_name, name, origin_file):
@@ -40,10 +46,10 @@ class Field:
 
 
 class ComplexType:
-    def __init__(self, qualified_name, name, complex_type):
+    def __init__(self, qualified_name, name, class_type: ClassType):
         self.qualified_name = qualified_name
         self.name = name
-        self.complex_type = complex_type
+        self.class_type = class_type
 
 
 class PrimitiveType:
@@ -56,8 +62,4 @@ class Enumeration:
         self.name = name
 
 
-class ClassType(Enum):
-    COLLECTION = "COLLECTION"
-    ENUM = "ENUM"
-    DATA_STRUCTURE = "DATA_STRUCTURE"
-    UNSPECIFIED = "UNSPECIFIED"
+

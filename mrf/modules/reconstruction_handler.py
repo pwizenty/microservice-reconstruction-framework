@@ -1,12 +1,14 @@
+from mrf.plugins.data.domain_data import Context
 from mrf.plugins.data.java.java_plugin import JavaPlugin
 from mrf.plugins.reconstruction_plugin import PluginType
+from mrf.repositories.MongoRepository import save_contexts
 from mrf.utilities.command_line import SourceFile
 
 
 class ReconstructionHandler(object):
     _instance = None
     source_files = [SourceFile]
-    reconstructed_data = []
+    reconstructed_data: list[Context] = []
     plugins = []
 
     def __new__(cls, source_files, plugins):
@@ -18,11 +20,11 @@ class ReconstructionHandler(object):
         return cls._instance
 
     def reconstruct_start(self):
-        self.reconstruct_data(self.source_files)
+        self.__reconstruct_data(self.source_files)
 
-
-        return "start - testo"
-
-    def reconstruct_data(self, source_files: list[SourceFile]):
+    def __reconstruct_data(self, source_files: list[SourceFile]):
         if PluginType.Java in self.plugins:
-            self.reconstructed_data = JavaPlugin().execute_reconstruction(source_files)
+            self.reconstructed_data.extend(JavaPlugin().execute_reconstruction(source_files))
+
+    def reconstruct_save(self):
+        save_contexts(self.reconstructed_data)
