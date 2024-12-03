@@ -96,16 +96,23 @@ def __to_rdata(data: Data):
 def __to_rfield(field_: Field):
     primitive_field_type = RPrimitiveType
     complex_field_type = RComplexType
+    # Check for field types (primitive of complex)
     if isinstance(field_.field_type, PrimitiveType):
         primitive_field_type = __to_rprimitive_type(field_.field_type)
         complex_field_type = None
     elif isinstance(field_.field_type, ComplexType):
         complex_field_type = __to_rcomplex_type(field_.field_type)
         primitive_field_type = None
-    r_field = RField(field_.name, primitive_field_type, complex_field_type)
-    #TODO: Add Handling of all Data
-    
 
+    r_field = RField(field_.name, primitive_field_type, complex_field_type)
+
+    # Handle field data information
+    for d in field_.data:
+        rdata = __to_rdata(d)
+        r_field.data.append(rdata)
+
+
+    #TODO: Add Handling of all Data
     return r_field
 
 def __to_rprimitive_type(primitive_field_type: PrimitiveType):
@@ -115,9 +122,9 @@ def __to_rprimitive_type(primitive_field_type: PrimitiveType):
 def __to_rcomplex_type(complex_field_type: ComplexType):
     class_type = __to_rclass_type(complex_field_type.class_type)
     r_complex_type = RComplexType(complex_field_type.name, complex_field_type.qualified_name, class_type)
-
     return r_complex_type
 
 def __to_rclass_type(class_type: ClassType):
     r_class_type = class_type.value
     return r_class_type
+
