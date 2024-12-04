@@ -1,15 +1,16 @@
+from dataclasses import dataclass, field
 from enum import Enum
 
-from dataclasses import dataclass, field
-
 from mrf.plugins.common.common_plugin import Data
-from mrf.plugins.data.domain_data import Context, DataStructure, Field, PrimitiveType, ComplexType, ClassType
+from mrf.plugins.data.domain_data import Context, DataStructure, Field, \
+    PrimitiveType, ComplexType, ClassType
 
 
 @dataclass
 class RData:
     name: str
     values = dict()
+
 
 @dataclass
 class RClassType(Enum):
@@ -18,15 +19,18 @@ class RClassType(Enum):
     DATA_STRUCTURE = "DATA_STRUCTURE"
     UNSPECIFIED = "UNSPECIFIED"
 
+
 @dataclass
 class RPrimitiveType:
     name: str
+
 
 @dataclass
 class RComplexType:
     name: str
     qualified_name: str
     class_type: str
+
 
 @dataclass
 class RField:
@@ -37,6 +41,7 @@ class RField:
 
     def __post_init__(self):
         self.data = []
+
 
 @dataclass
 class RDataStructure:
@@ -49,9 +54,11 @@ class RDataStructure:
         self.data = []
         self.fields = []
 
+
 @dataclass
 class REnumeration:
     name: str
+
 
 @dataclass
 class RContext:
@@ -66,9 +73,11 @@ class RContext:
         self.enums = []
         self.data = []
 
+
 def transform_context_for_database(context: Context):
     r_context = __to_rcontext(context)
     return r_context
+
 
 def __to_rcontext(context: Context):
     r_context = RContext(context.name, context.qualified_name)
@@ -77,8 +86,10 @@ def __to_rcontext(context: Context):
         r_context.data_structures.append(__to_rdata_structure(d))
     return r_context
 
+
 def __to_rdata_structure(data_structure: DataStructure):
-    r_data_structure = RDataStructure(data_structure.name, data_structure.qualified_name)
+    r_data_structure = RDataStructure(data_structure.name,
+                                      data_structure.qualified_name)
 
     for d in data_structure.data:
         r_data_structure.data.append(__to_rdata(d))
@@ -88,10 +99,12 @@ def __to_rdata_structure(data_structure: DataStructure):
 
     return r_data_structure
 
+
 def __to_rdata(data: Data):
     r_data = RData(data.name)
     r_data.values = data.values
     return r_data
+
 
 def __to_rfield(field_: Field):
     primitive_field_type = RPrimitiveType
@@ -111,20 +124,22 @@ def __to_rfield(field_: Field):
         rdata = __to_rdata(d)
         r_field.data.append(rdata)
 
-
-    #TODO: Add Handling of all Data
+    # TODO: Add Handling of all Data
     return r_field
+
 
 def __to_rprimitive_type(primitive_field_type: PrimitiveType):
     r_primitive_type = RPrimitiveType(primitive_field_type.name)
     return r_primitive_type
 
+
 def __to_rcomplex_type(complex_field_type: ComplexType):
     class_type = __to_rclass_type(complex_field_type.class_type)
-    r_complex_type = RComplexType(complex_field_type.name, complex_field_type.qualified_name, class_type)
+    r_complex_type = RComplexType(complex_field_type.name,
+                                  complex_field_type.qualified_name, class_type)
     return r_complex_type
+
 
 def __to_rclass_type(class_type: ClassType):
     r_class_type = class_type.value
     return r_class_type
-

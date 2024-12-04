@@ -13,11 +13,13 @@ class DomainData:
         self.data_structures = []
         self.enums = []
 
+
 class ClassType(Enum):
     COLLECTION = "COLLECTION"
     ENUM = "ENUM"
     DATA_STRUCTURE = "DATA_STRUCTURE"
     UNSPECIFIED = "UNSPECIFIED"
+
 
 class Context:
     def __init__(self, qualified_name, name, origin_file):
@@ -60,6 +62,3 @@ class PrimitiveType:
 class Enumeration:
     def __init__(self, name):
         self.name = name
-
-
-

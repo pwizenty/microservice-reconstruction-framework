@@ -13,11 +13,12 @@ class SourceFile:
 
 def handle_parameters():
     parser = arg_parser.ArgumentParser(
-        description="Parse the command line arguments for the Microservice Reconstruction Framework."
-    )
-    parser.add_argument("-p", "--plugin", choices=["Java", "Docker"], nargs='+', type=str,
-                        help="Plugins used by the MRF.")
-    parser.add_argument("-t", "--target", type=str, help="File path to the system's source code.")
+        description="Parse the command line arguments for the Microservice " +
+                    "Reconstruction Framework.")
+    parser.add_argument("-p", "--plugin", choices=["Java", "Docker"],
+                        nargs='+', type=str, help="Plugins used by the MRF.")
+    parser.add_argument("-t", "--target", type=str,
+                        help="File path to the system's source code.")
     args = parser.parse_args()
     return args
 
@@ -32,7 +33,7 @@ def load_file(file_path):
     except IOError:
         print(f"An error occurred while reading the file {file_path}.")
     except UnicodeDecodeError:
-        print(f"An UnicodeDecodeError occurred while reading the file {file_path}.")
+        print(f"An UnicodeError occurred while reading the file {file_path}.")
     return code
 
 

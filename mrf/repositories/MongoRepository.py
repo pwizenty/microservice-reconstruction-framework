@@ -1,11 +1,11 @@
-import json
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict
 
 import yaml
 from pymongo import MongoClient
 
 from mrf.plugins.data.domain_data import Context
-from mrf.repositories.domain.data import RContext, transform_context_for_database
+from mrf.repositories.domain.data import RContext, \
+    transform_context_for_database
 
 
 def save_contexts(contexts: list[Context]):
@@ -19,7 +19,6 @@ def save_contexts(contexts: list[Context]):
     for c in r_contexts:
         context_dict = asdict(c)
         collection.insert_one(context_dict)
-    print()
 
 
 def __setup_database():

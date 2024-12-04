@@ -24,7 +24,8 @@ class ReconstructionHandler(object):
 
     def __reconstruct_data(self, source_files: list[SourceFile]):
         if PluginType.Java in self.plugins:
-            self.reconstructed_data.extend(JavaPlugin().execute_reconstruction(source_files))
+            self.reconstructed_data.extend(
+                JavaPlugin().execute_reconstruction(source_files))
 
     def reconstruct_save(self):
         save_contexts(self.reconstructed_data)
