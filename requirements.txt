@@ -9,3 +9,8 @@ dataclasses
 
 # Testing dependencies
 deepdiff
+
+# Documentation
+sphinx
+sphinxcontrib-napoleon
+furo

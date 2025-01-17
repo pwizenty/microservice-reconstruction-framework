@@ -1,3 +1,7 @@
+"""
+Module with a summary of static variables.
+"""
+
 # Spring annotations
 CONTEXT_ANNOTATION = "SpringBootApplication"
 ENTITY_ANNOTATION = "Entity"

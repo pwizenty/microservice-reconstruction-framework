@@ -1,11 +1,20 @@
+"""
+Module for handling the reconstruction process including the management of
+source code files and reconstruction process.
+"""
+
 from mrf.plugins.data.domain_data import Context
 from mrf.plugins.data.java.java_plugin import JavaPlugin
 from mrf.plugins.reconstruction_plugin import PluginType
-from mrf.repositories.MongoRepository import save_contexts
+from mrf.repositories.mongo_repository import save_contexts
 from mrf.utilities.command_line import SourceFile
 
 
-class ReconstructionHandler(object):
+class ReconstructionHandler:
+    """
+    Class for handling the reconstruction process.
+    """
+
     _instance = None
     source_files = [SourceFile]
     reconstructed_data: list[Context] = []
@@ -20,12 +29,20 @@ class ReconstructionHandler(object):
         return cls._instance
 
     def reconstruct_start(self):
+        """
+        Method that start the phases of the reconstruction process in the order,
+        domain data, microservices and operation.
+        """
         self.__reconstruct_data(self.source_files)
 
     def __reconstruct_data(self, source_files: list[SourceFile]):
-        if PluginType.Java in self.plugins:
+        if PluginType.JAVA in self.plugins:
             self.reconstructed_data.extend(
-                JavaPlugin().execute_reconstruction(source_files))
+                JavaPlugin().execute_reconstruction(source_files)
+            )
 
     def reconstruct_save(self):
+        """
+        Save the reconstructed architecture information to the database.
+        """
         save_contexts(self.reconstructed_data)

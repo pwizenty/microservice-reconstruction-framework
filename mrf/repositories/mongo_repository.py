@@ -1,17 +1,26 @@
+"""
+Module for saving reconstructed information to a MongoDB based on specific
+information.
+"""
+
 from dataclasses import asdict
 
 import yaml
 from pymongo import MongoClient
 
 from mrf.plugins.data.domain_data import Context
-from mrf.repositories.domain.data import RContext, \
-    transform_context_for_database
+from mrf.repositories.domain.data import RContext, transform_context_for_database
 
 
 def save_contexts(contexts: list[Context]):
+    """
+    Method for saving the reconstructed domain data information to a database.
+
+    Args:
+        contexts ([:class:`Context`]): List of reconstructed domain information.
+    """
     database = __setup_database()
     collection = database["context"]
-    # TODO: Dataclass stuff here
     r_contexts: list[RContext] = []
     for c in contexts:
         r_contexts.append(transform_context_for_database(c))
@@ -22,7 +31,7 @@ def save_contexts(contexts: list[Context]):
 
 
 def __setup_database():
-    with open("config.yaml", "r") as config_file:
+    with open("config.yaml", "r", encoding="utf-8") as config_file:
         config = yaml.safe_load(config_file)
     db_config = config["database"]
     db_host = db_config["host"]

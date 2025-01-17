@@ -1,3 +1,7 @@
+"""
+Main module of the Microservice Reconstruction Framework (MAF)
+"""
+
 import utilities.command_line as line
 from mrf.modules.reconstruction_handler import ReconstructionHandler
 
