@@ -21,5 +21,6 @@ setup(
     author_email="Philip Wizenty",
     url="https://github.com/pwizenty/microservice-reconstruction-framework",
     license_mrf=license,
-    packages=find_packages(exclude=("tests", "docs")),
+    packages=find_packages(where="mrf"),
+    package_dir={"": "mrf"},
 )

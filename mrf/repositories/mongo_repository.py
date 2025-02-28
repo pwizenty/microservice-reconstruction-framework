@@ -31,7 +31,7 @@ def save_contexts(contexts: list[Context]):
 
 
 def __setup_database():
-    with open("config.yaml", "r", encoding="utf-8") as config_file:
+    with open("mrf/config.yaml", "r", encoding="utf-8") as config_file:
         config = yaml.safe_load(config_file)
     db_config = config["database"]
     db_host = db_config["host"]
