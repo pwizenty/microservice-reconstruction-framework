@@ -14,6 +14,10 @@ def main():
     print("Microservice Reconstruction Framework")
     print("Reconstruction: Start!")
     args = line.handle_parameters()
+    if args.plugin is None or args.target is None:
+        print("Plugins and target folder must be selected for execution")
+        return None
+
     plugins = line.args_to_plugins(args)
     files = line.load_files(args.target)
     source_files = line.files_to_source_files(files)

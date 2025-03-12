@@ -45,14 +45,9 @@ def handle_parameters():
         nargs="+",
         type=str,
         help="Plugins used by the MRF.",
-        required=True,
     )
     parser.add_argument(
-        "-t",
-        "--target",
-        type=str,
-        help="File path to the system's source code.",
-        required=True,
+        "-t", "--target", type=str, help="File path to the system's source code."
     )
     args = parser.parse_args()
     return args
