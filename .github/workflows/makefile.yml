@@ -14,9 +14,11 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Init build
+      run: make init
 
     - name: Install dependencies
-      run: make Install
+      run: make install
 
     - name: Build Docs
       run: make html

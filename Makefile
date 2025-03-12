@@ -1,13 +1,10 @@
-init:
-	pip install -r requirements.txt
-
 # Minimal makefile for Sphinx documentation
 #
 
 # You can set these variables from the command line, and also
 # from the environment for the first two.
 SPHINXOPTS    ?=
-SPHINXBUILD   = sphinx-build
+SPHINXBUILD   ?= sphinx-build
 SOURCEDIR     = docs/source
 BUILDDIR      = build
 
@@ -30,8 +27,10 @@ help:
 
 all: run
 
-install:
+init:
 	$(PIP) install -r requirements.txt
+
+install:
 	$(PIP) install -e .
 
 run:
