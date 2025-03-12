@@ -45,9 +45,14 @@ def handle_parameters():
         nargs="+",
         type=str,
         help="Plugins used by the MRF.",
+        required=True,
     )
     parser.add_argument(
-        "-t", "--target", type=str, help="File path to the system's source code."
+        "-t",
+        "--target",
+        type=str,
+        help="File path to the system's source code.",
+        required=True,
     )
     args = parser.parse_args()
     return args
@@ -55,11 +60,10 @@ def handle_parameters():
 
 def load_file(file_path: str) -> str | None:
     """
-    Load a file based on a given file path.
-    :param file_path:
-    :type file_path:
-    :return:
-    :rtype:
+    [TODO:description]
+
+    :param file_path: [TODO:description]
+    :return: [TODO:description]
     """
     code = None
     try:
@@ -75,13 +79,6 @@ def load_file(file_path: str) -> str | None:
 
 
 def load_files(file_path) -> list[Path]:
-    """
-
-    :param file_path:
-    :type file_path:
-    :return:
-    :rtype:
-    """
     directory = Path(file_path)
     files = [f for f in directory.rglob("*") if f.is_file()]
     return files
@@ -117,7 +114,7 @@ def args_to_plugins(args) -> list[PluginType]:
         [PluginType]: List of PluginType
 
     """
-    plugins = []
+    plugins: list[PluginType] = []
     for a in args.plugin:
         plugin_type = PluginType(a)
         plugins.append(plugin_type)

@@ -7,6 +7,10 @@ from mrf.modules.reconstruction_handler import ReconstructionHandler
 
 
 def main():
+    """
+    Main method of the mrf.
+    """
+
     print("Microservice Reconstruction Framework")
     print("Reconstruction: Start!")
     args = line.handle_parameters()

@@ -14,11 +14,12 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: configure
-      run: ./configure
 
     - name: Install dependencies
-      run: make instakk
+      run: make Install
+
+    - name: Build Docs
+      run: make html
 
     - name: Run run
       run: make run
