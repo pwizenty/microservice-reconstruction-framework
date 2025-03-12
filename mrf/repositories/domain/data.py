@@ -84,8 +84,8 @@ class RField:
     """
 
     name: str
-    primitive_field_type: RPrimitiveType
-    complex_field_type: RComplexType
+    primitive_field_type: RPrimitiveType | None
+    complex_field_type: RComplexType | None
     data: list[RData] = field(init=False)
 
     def __post_init__(self):
@@ -194,15 +194,13 @@ def __to_rdata(data: Data):
 
 
 def __to_rfield(field_: Field):
-    primitive_field_type = RPrimitiveType
-    complex_field_type = RComplexType
+    primitive_field_type = None
+    complex_field_type = None
     # Check for field types (primitive of complex)
     if isinstance(field_.field_type, PrimitiveType):
         primitive_field_type = __to_rprimitive_type(field_.field_type)
-        complex_field_type = None
     elif isinstance(field_.field_type, ComplexType):
         complex_field_type = __to_rcomplex_type(field_.field_type)
-        primitive_field_type = None
 
     r_field = RField(field_.name, primitive_field_type, complex_field_type)
 

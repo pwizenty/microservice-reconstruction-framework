@@ -4,10 +4,10 @@ source code files and reconstruction process.
 """
 
 from mrf.plugins.data.domain_data import Context
-from mrf.plugins.data.java.java_plugin import JavaPlugin
 from mrf.plugins.reconstruction_plugin import PluginType
 from mrf.repositories.mongo_repository import save_contexts
 from mrf.utilities.command_line import SourceFile
+from mrf.plugins.data.java.java_plugin import JavaPlugin
 
 
 class ReconstructionHandler:
@@ -16,7 +16,7 @@ class ReconstructionHandler:
     """
 
     _instance = None
-    source_files = [SourceFile]
+    source_files: list[SourceFile] = []
     reconstructed_data: list[Context] = []
     plugins = []
 

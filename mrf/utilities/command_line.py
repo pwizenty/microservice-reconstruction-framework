@@ -53,7 +53,7 @@ def handle_parameters():
     return args
 
 
-def load_file(file_path: str):
+def load_file(file_path: str) -> str | None:
     """
     Load a file based on a given file path.
     :param file_path:
@@ -74,7 +74,7 @@ def load_file(file_path: str):
     return code
 
 
-def load_files(file_path):
+def load_files(file_path) -> list[Path]:
     """
 
     :param file_path:
@@ -87,7 +87,7 @@ def load_files(file_path):
     return files
 
 
-def files_to_source_files(files) -> [SourceFile]:
+def files_to_source_files(files) -> list[SourceFile]:
     """
     Transforms a list of files to a list of :class: `SourceFile`.
     Args:
@@ -105,7 +105,7 @@ def files_to_source_files(files) -> [SourceFile]:
     return source_files
 
 
-def args_to_plugins(args) -> [PluginType]:
+def args_to_plugins(args) -> list[PluginType]:
     """
     Select the plugins from the command line arguments and transform them into
     a list pf :class: `PluginType`s.

@@ -7,13 +7,14 @@ from enum import Enum
 
 import javalang as java_lang
 from javalang.tree import (
+    AnnotationDeclaration,
     CompilationUnit,
     ClassDeclaration,
     FieldDeclaration,
     Annotation,
     InterfaceDeclaration,
-    PackageDeclaration,
     EnumDeclaration,
+    TypeDeclaration,
 )
 
 from mrf.utilities.sping import APPLICATION_CLASS
@@ -35,6 +36,11 @@ PRIMITIVE_JAVA_TYPES = [
 # 'com.lakesidemutual.customercore.domain'
 HIERARCHY_LEVEL = 3
 
+UNKNOWN_CLASS_NAME = "UnknownClassName"
+UNKNOWN_PACKAGE_NAME = "UnknownPackageName"
+UNKNOWN_FIELD_NAME = "UnkownFieldName"
+UNKNOWN_IMPORT_NAME = "UnknownImportName"
+
 
 class DependencyType(Enum):
     """
@@ -44,9 +50,10 @@ class DependencyType(Enum):
     management tool like Maven.
     """
 
-    EXTERNAL_DEPENDENCY = "External_Dependency"
-    PROJECT_DEPENDENCY = "Project_Dependency"
-    PACKAGE_DEPENDENCY = "Package_Dependency"
+    EXTERNAL_DEPENDENCY = "ExternalDependency"
+    PROJECT_DEPENDENCY = "ProjectDependency"
+    PACKAGE_DEPENDENCY = "PackageDependency"
+    UNKNOWN_DEPENDENCY = "UnkownDependency"
 
 
 @dataclass
@@ -59,7 +66,34 @@ class ImportType:
     dependency_type: DependencyType
 
 
-def parse_java_file(file: str):
+class NoJavaDeclrationException(Exception):
+    """
+    The Java class class has no valid Declaration
+    """
+
+    def __init__(self, unit: CompilationUnit, message: str):
+        self.unit = unit
+        self.message = message
+        super().__init__(message)
+
+    def __str__(self):
+        return self.message
+
+
+class NoProjectDependencyFoundException(Exception):
+    """
+    Exepction when the the project dependency could not be resolved.
+    """
+
+    def __init__(self, message: str):
+        self.message = message
+        super().__init__(message)
+
+    def __str__(self):
+        return self.message
+
+
+def parse_java_file(file: str) -> CompilationUnit:
     """
     Parse a given Java file into a ComplicationUnit
 
@@ -73,7 +107,7 @@ def parse_java_file(file: str):
     return tree
 
 
-def get_class_from_tree(unit: CompilationUnit):
+def get_class_from_tree(unit: CompilationUnit) -> TypeDeclaration:
     """
     Transform a Java ComplicationUnit into a Java class if it is an instance of
     a Enumeration, Interface, Package or Class.
@@ -86,19 +120,23 @@ def get_class_from_tree(unit: CompilationUnit):
     """
     classes = [
         c
-        for c in unit.types
+        for c in getattr(unit, "types")
         if isinstance(
             c,
             ClassDeclaration
             | InterfaceDeclaration
-            | PackageDeclaration
-            | EnumDeclaration,
+            | EnumDeclaration
+            | AnnotationDeclaration,
         )
     ]
-    return classes[0] if classes else None
+
+    if not classes:
+        raise NoJavaDeclrationException(unit, "No declration found in Unit")
+
+    return classes[0]
 
 
-def has_annotation_for_class(clazz: ClassDeclaration, annotation_name: str):
+def has_annotation_for_class(dec: TypeDeclaration, name: str) -> bool:
     """
     Method that check that a clazz has a specific annotation.
 
@@ -109,13 +147,13 @@ def has_annotation_for_class(clazz: ClassDeclaration, annotation_name: str):
     Returns:
         True / False based of the class has the annotation
     """
-    if hasattr(clazz, "annotations"):
-        annotation = find_annotation(clazz.annotations, annotation_name)
+    if hasattr(dec, "annotations"):
+        annotation = find_annotation(getattr(dec, "annotations"), name)
         return bool(annotation)
     return False
 
 
-def has_annotation_for_field(field: FieldDeclaration, annotation_names: str):
+def has_annotation_for_field(field: FieldDeclaration, names: list[str]) -> bool:
     """
     Checks if a field of a has a specific annotation.
 
@@ -127,12 +165,14 @@ def has_annotation_for_field(field: FieldDeclaration, annotation_names: str):
         True / False based of the field has the annotation
     """
     if hasattr(field, "annotations"):
-        annotation = find_annotation(field.annotations, annotation_names)
+        annotation = find_annotation(getattr(field, "annotations"), names)
         return bool(annotation)
     return False
 
 
-def find_annotation(annotations: list[Annotation], annotation_names):
+def find_annotation(
+    annotations: list[Annotation], annotation_names
+) -> Annotation | None:
     """
     Method that checks if an annotation is in a list of annotations.
 
@@ -154,7 +194,7 @@ def find_annotation(annotations: list[Annotation], annotation_names):
     return annotation
 
 
-def get_class_name(clazz: ClassDeclaration):
+def get_class_name(clazz: TypeDeclaration) -> str:
     """
     Get the name of a Java class
 
@@ -165,11 +205,12 @@ def get_class_name(clazz: ClassDeclaration):
         name (str): Name of the Java class
     """
     if hasattr(clazz, "name"):
-        return clazz.name
-    return None
+        return getattr(clazz, "name")
+    else:
+        return UNKNOWN_CLASS_NAME
 
 
-def get_qualified_class_name(tree: CompilationUnit):
+def get_qualified_class_name(tree: CompilationUnit) -> str:
     """
     Get the qualified name of a class from a ComplicationUnit
 
@@ -180,15 +221,21 @@ def get_qualified_class_name(tree: CompilationUnit):
         class_name (str): Qualified class name of the ComplicationUnit
     """
     clazz = get_class_from_tree(tree)
+
+    if clazz is None:
+        return UNKNOWN_CLASS_NAME
+
     class_name = get_class_name(clazz)
+
     if hasattr(tree, "package"):
-        package_name = tree.package.name
+        package = getattr(tree, "package")
+        package_name = package.name
         return package_name + "." + class_name.lower()
     # Return simple class name, when package is not set
     return class_name
 
 
-def get_field_name(field: FieldDeclaration):
+def get_field_name(field: FieldDeclaration) -> str:
     """
     Get the name of a field from a FieldDeclaration.
 
@@ -199,11 +246,12 @@ def get_field_name(field: FieldDeclaration):
         field_name (str): Name of the field
     """
     if hasattr(field, "declarators"):
-        return field.declarators[0].name
-    return None
+        declarators = getattr(field, "declarators")
+        return declarators[0].name
+    return UNKNOWN_FIELD_NAME
 
 
-def adjust_name(name: str):
+def adjust_name(name: str) -> str:
     """
     Remove specific naming parts from a string, e.g., remove "Application" from
     the class name "CustomerCoreApplication".
@@ -221,7 +269,9 @@ def adjust_name(name: str):
     return name.removesuffix(APPLICATION_CLASS.lower())
 
 
-def match_context(qualified_name_context: str, qualified_name_structure: str):
+def match_context(
+    qualified_name_context: str, qualified_name_structure: str
+) -> list[str]:
     """
     Compare of names of a reconstructed context.
 
@@ -235,7 +285,7 @@ def match_context(qualified_name_context: str, qualified_name_structure: str):
     return __build_matches(qualified_name_context, qualified_name_structure, ".")
 
 
-def resolve_complex_field(tree: CompilationUnit, field_type: str):
+def resolve_complex_field(tree: CompilationUnit, field_type: str) -> ImportType:
     """
     Resolve the qualified name of a complex type based on the type of dependency
 
@@ -250,7 +300,7 @@ def resolve_complex_field(tree: CompilationUnit, field_type: str):
         basic_name = next(
             (
                 im
-                for im in tree.imports
+                for im in getattr(tree, "imports")
                 if hasattr(im, "path") and getattr(im, "path").endswith(field_type)
             ),
             None,
@@ -272,10 +322,10 @@ def resolve_complex_field(tree: CompilationUnit, field_type: str):
             basic_name.path, __get_package_name(tree)
         ):
             return ImportType(basic_name.path, DependencyType.EXTERNAL_DEPENDENCY)
-    return None
+    return ImportType(UNKNOWN_FIELD_NAME, DependencyType.UNKNOWN_DEPENDENCY)
 
 
-def __build_qualified_name(tree: CompilationUnit, field_type: str):
+def __build_qualified_name(tree: CompilationUnit, field_type: str) -> str:
     package_name = __get_package_name(tree)
     if package_name is not None:
         qualified_field_type = package_name + "." + field_type
@@ -283,20 +333,21 @@ def __build_qualified_name(tree: CompilationUnit, field_type: str):
     return "cc"
 
 
-def __get_package_name(tree: CompilationUnit):
+def __get_package_name(tree: CompilationUnit) -> str:
     if hasattr(tree, "package"):
-        return tree.package.name
-    return None
+        package = getattr(tree, "package")
+        return package.name
+    return UNKNOWN_PACKAGE_NAME
 
 
-def __has_matching_name(name1: str, name2: str):
+def __has_matching_name(name1: str, name2: str) -> bool:
     matched_parts = __build_matches(name1, name2, ".")
     if len(matched_parts) < HIERARCHY_LEVEL:
         return False
     return True
 
 
-def __build_matches(string1: str, string2: str, split_char: str):
+def __build_matches(string1: str, string2: str, split_char: str) -> list[str]:
     matches = []
     string1_parts = string1.split(split_char)
     string2_parts = string2.split(split_char)

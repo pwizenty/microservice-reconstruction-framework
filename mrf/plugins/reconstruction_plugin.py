@@ -5,6 +5,7 @@ excrete reconstruction plugins.
 
 from abc import ABC, abstractmethod
 from enum import Enum
+from typing import Any
 
 
 class PluginType(Enum):
@@ -23,7 +24,7 @@ class Plugin(ABC):
     """
 
     @abstractmethod
-    def file_types(self):
+    def file_types(self) -> list[str]:
         """
         Abstract method for receiving supported file types form a plugin.
 
@@ -32,7 +33,7 @@ class Plugin(ABC):
         """
 
     @abstractmethod
-    def execute_reconstruction(self, source_files):
+    def execute_reconstruction(self, source_files) -> list[Any]:
         """
         Abstract method for executing the reconstruction functionalities of the
         plugin.

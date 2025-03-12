@@ -12,6 +12,9 @@ from mrf.plugins.common.common_plugin import Data
 DDD_ENTITY = "Entity"
 DDD_IDENTIFIER = "Identifier"
 
+UNKNOWN_CONTEXT = "UnknownContext"
+UNKNOWN_TYPE = "UnknownType"
+
 
 class ClassType(Enum):
     """
@@ -51,7 +54,7 @@ class Field:
     """
 
     name: str
-    field_type: str
+    field_type: PrimitiveType | ComplexType
     data: list[Data] = field(init=False)
 
     def __post_init__(self):
