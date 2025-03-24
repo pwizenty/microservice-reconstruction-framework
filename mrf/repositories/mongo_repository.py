@@ -8,7 +8,7 @@ from dataclasses import asdict
 import yaml
 from pymongo import MongoClient
 
-from mrf.plugins.data.domain_data import Context
+from mrf.modules.domain_data import Context
 from mrf.repositories.domain.data import RContext, transform_context_for_database
 
 

@@ -3,7 +3,7 @@ Module for handling the reconstruction process including the management of
 source code files and reconstruction process.
 """
 
-from mrf.plugins.data.domain_data import Context
+from mrf.modules.domain_data import Context
 from mrf.plugins.reconstruction_plugin import PluginType
 from mrf.repositories.mongo_repository import save_contexts
 from mrf.utilities.command_line import SourceFile

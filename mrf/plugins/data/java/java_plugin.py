@@ -10,7 +10,7 @@ from typing import List
 from javalang.tree import FieldDeclaration
 
 from mrf.plugins.common.common_plugin import Data, JavaClassArtifact
-from mrf.plugins.data.domain_data import (
+from mrf.modules.domain_data import (
     UNKNOWN_CONTEXT,
     UNKNOWN_TYPE,
     Context,

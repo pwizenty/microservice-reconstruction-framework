@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from mrf.plugins.common.common_plugin import Data
-from mrf.plugins.data.domain_data import (
+from mrf.modules.domain_data import (
     Context,
     DataStructure,
     Field,
