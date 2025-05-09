@@ -41,7 +41,7 @@ def handle_parameters():
     parser.add_argument(
         "-p",
         "--plugin",
-        choices=["Java", "Docker"],
+        choices=["Java", "Docker", "Spring"],
         nargs="+",
         type=str,
         help="Plugins used by the MRF.",

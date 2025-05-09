@@ -4,12 +4,14 @@ Utility module for handling Java-based source code artifacts.
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import List
 
 import javalang as java_lang
 from javalang.tree import (
     AnnotationDeclaration,
     CompilationUnit,
     ClassDeclaration,
+    Declaration,
     FieldDeclaration,
     Annotation,
     InterfaceDeclaration,
@@ -18,11 +20,14 @@ from javalang.tree import (
 )
 
 from mrf.utilities.sping import APPLICATION_CLASS
+from mrf.utilities.command_line import SourceFile
+from mrf.plugins.common.common_plugin import JavaClassArtifact
 
 PRIMITIVE_JAVA_TYPES = [
     "byte",
     "short",
     "int",
+    "integer",
     "long",
     "float",
     "double",
@@ -136,9 +141,9 @@ def get_class_from_tree(unit: CompilationUnit) -> TypeDeclaration:
     return classes[0]
 
 
-def has_annotation_for_class(dec: TypeDeclaration, name: str) -> bool:
+def has_annotation(dec: Declaration, names: list[str]) -> bool:
     """
-    Method that check that a clazz has a specific annotation.
+    Method that check if a type has specific annotations.
 
     Args:
         clazz (ClassDeclaration): Parsed Java class artifact
@@ -148,24 +153,7 @@ def has_annotation_for_class(dec: TypeDeclaration, name: str) -> bool:
         True / False based of the class has the annotation
     """
     if hasattr(dec, "annotations"):
-        annotation = find_annotation(getattr(dec, "annotations"), name)
-        return bool(annotation)
-    return False
-
-
-def has_annotation_for_field(field: FieldDeclaration, names: list[str]) -> bool:
-    """
-    Checks if a field of a has a specific annotation.
-
-    Args:
-        field (FieldDeclaration): Field of a Java class
-        annotation_names (): Annotation name
-
-    Returns:
-        True / False based of the field has the annotation
-    """
-    if hasattr(field, "annotations"):
-        annotation = find_annotation(getattr(field, "annotations"), names)
+        annotation = find_annotation(getattr(dec, "annotations"), names)
         return bool(annotation)
     return False
 
@@ -323,6 +311,32 @@ def resolve_complex_field(tree: CompilationUnit, field_type: str) -> ImportType:
         ):
             return ImportType(basic_name.path, DependencyType.EXTERNAL_DEPENDENCY)
     return ImportType(UNKNOWN_FIELD_NAME, DependencyType.UNKNOWN_DEPENDENCY)
+
+
+def load_classes(
+    source_files: list[SourceFile], java_types: list[str]
+) -> list[JavaClassArtifact]:
+    """
+    Load java class file for plugin.
+
+    Args:
+        source_files (): List of Java source files
+        java_types (): Supported filed types by the Java plugin
+
+    Returns:
+        java_classes (JavaClassArtifact): List of Java class artifacts
+    """
+    java_classes: List[JavaClassArtifact] = []
+    for s in source_files:
+        if s.suffix in java_types:
+            tree = parse_java_file(s.file)
+            java_class = JavaClassArtifact(tree, s.path)
+            java_classes.append(java_class)
+    return java_classes
+
+
+def match_microservice_interface(microservice_name: str, interface_name: str) -> bool:
+    return __has_matching_name(microservice_name, interface_name)
 
 
 def __build_qualified_name(tree: CompilationUnit, field_type: str) -> str:

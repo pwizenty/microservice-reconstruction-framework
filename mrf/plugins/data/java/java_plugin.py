@@ -9,7 +9,6 @@ from typing import List
 
 from javalang.tree import FieldDeclaration
 
-from mrf.plugins.common.common_plugin import Data, JavaClassArtifact
 from mrf.modules.domain_data import (
     UNKNOWN_CONTEXT,
     UNKNOWN_TYPE,
@@ -22,11 +21,10 @@ from mrf.modules.domain_data import (
     ClassType,
     DDD_IDENTIFIER,
 )
+from mrf.plugins.common.common_plugin import Data, JavaClassArtifact
 from mrf.plugins.reconstruction_plugin import Plugin
 from mrf.utilities.command_line import SourceFile
 from mrf.utilities.java_utils import (
-    parse_java_file,
-    has_annotation_for_class,
     get_class_from_tree,
     get_class_name,
     get_qualified_class_name,
@@ -36,7 +34,7 @@ from mrf.utilities.java_utils import (
     resolve_complex_field,
     DependencyType,
     ImportType,
-    has_annotation_for_field,
+    has_annotation,
 )
 from mrf.utilities.sping import (
     CONTEXT_ANNOTATION,
@@ -45,6 +43,7 @@ from mrf.utilities.sping import (
     ID_ANNOTATIONS,
 )
 from mrf.utilities.sping import INFRASTRUCTURE_TECHNOLOGIES
+from mrf.utilities.java_utils import load_classes
 
 
 class JavaPlugin(Plugin):
@@ -77,7 +76,7 @@ class JavaPlugin(Plugin):
         Returns:
             contexts (Context): List of reconstructed domain data information.
         """
-        self.__load_classes(source_files)
+        self.java_classes.extend(load_classes(source_files, self.file_types()))
         for clazz in self.java_classes:
             context = self.__reconstruct_context(clazz)
             if context is not None:
@@ -87,16 +86,9 @@ class JavaPlugin(Plugin):
 
         return self.contexts
 
-    def __load_classes(self, source_files: list[SourceFile]):
-        for s in source_files:
-            if s.suffix in self.file_types():
-                tree = parse_java_file(s.file)
-                java_class = JavaClassArtifact(tree, s.path)
-                self.java_classes.append(java_class)
-
     def __reconstruct_context(self, java_class: JavaClassArtifact) -> Context | None:
         clazz = get_class_from_tree(java_class.tree)
-        if has_annotation_for_class(clazz, CONTEXT_ANNOTATION):
+        if has_annotation(clazz, [CONTEXT_ANNOTATION]):
             name = get_class_name(clazz).removesuffix(APPLICATION_CLASS)
             # Check if context is related to a Spring infrastructure technology
             if any(t in name.lower() for t in INFRASTRUCTURE_TECHNOLOGIES):
@@ -115,7 +107,7 @@ class JavaPlugin(Plugin):
 
     def __reconstruct_entity(self, java_class: JavaClassArtifact):
         clazz = get_class_from_tree(java_class.tree)
-        if has_annotation_for_class(clazz, ENTITY_ANNOTATION):
+        if has_annotation(clazz, [ENTITY_ANNOTATION]):
             structure = self.__reconstruct_data_structure(java_class)
             data = Data(DDD_ENTITY)
             structure.data.append(data)
@@ -151,7 +143,7 @@ class JavaPlugin(Plugin):
                 primitive_type = PrimitiveType(field_type)
                 field = Field(field_name, primitive_type)
 
-                if has_annotation_for_field(f, ID_ANNOTATIONS):
+                if has_annotation(f, ID_ANNOTATIONS):
                     data = Data(DDD_IDENTIFIER)
                     field.data.append(data)
                 primitive_fields.append(field)
@@ -168,7 +160,7 @@ class JavaPlugin(Plugin):
                 complex_type = self.__handle_dependency(result)
                 field_name = get_field_name(f)
                 field = Field(field_name, complex_type)
-                if has_annotation_for_field(f, ID_ANNOTATIONS):
+                if has_annotation(f, ID_ANNOTATIONS):
                     data = Data(DDD_IDENTIFIER)
                     field.data.append(data)
                 complex_fields.append(field)
