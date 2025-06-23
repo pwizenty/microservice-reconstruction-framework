@@ -16,21 +16,7 @@ from mrf.modules.domain_data import (
     ComplexType,
     ClassType,
 )
-
-
-@dataclass
-class RData:
-    """
-    Data structure class for the integration of meta-data into reconstructed
-    information.
-
-    Attributes:
-        name (str): Name of the meta-data information
-        values (dict): Key-Value information about the meta-data information
-    """
-
-    name: str
-    values = {}
+from repositories.common import RData, to_rdata
 
 
 class RClassType(Enum):
@@ -179,18 +165,12 @@ def __to_rdata_structure(data_structure: DataStructure):
     )
 
     for d in data_structure.data:
-        r_data_structure.data.append(__to_rdata(d))
+        r_data_structure.data.append(to_rdata(d))
 
     for f in data_structure.fields:
         r_data_structure.fields.append(__to_rfield(f))
 
     return r_data_structure
-
-
-def __to_rdata(data: Data):
-    r_data = RData(data.name)
-    r_data.values = data.values
-    return r_data
 
 
 def __to_rfield(field_: Field):
@@ -206,7 +186,7 @@ def __to_rfield(field_: Field):
 
     # Handle field data information
     for d in field_.data:
-        rdata = __to_rdata(d)
+        rdata = to_rdata(d)
         r_field.data.append(rdata)
     return r_field
 

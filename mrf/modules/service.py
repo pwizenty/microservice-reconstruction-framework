@@ -29,7 +29,7 @@ class CommunicationType(Enum):
 class Parameter:
     name: str
     communication_type: CommunicationType
-    exchange_pazttern: ExchangePattern
+    exchange_pattern: ExchangePattern
     type: PrimitiveType | ComplexType
     data: list[Data] = field(init=False)
 

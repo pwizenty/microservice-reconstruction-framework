@@ -224,5 +224,4 @@ class SpringPlugin(Plugin):
         complex_type = ComplexType(
             name, import_type.qualified_import_name, ClassType.DATA_STRUCTURE
         )
-
         return complex_type
