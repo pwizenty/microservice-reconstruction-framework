@@ -16,7 +16,7 @@ from mrf.modules.domain_data import (
     ComplexType,
     ClassType,
 )
-from repositories.common import RData, to_rdata
+from mrf.repositories.common import RData, to_rdata
 
 
 class RClassType(Enum):

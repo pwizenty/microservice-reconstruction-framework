@@ -8,10 +8,13 @@ from dataclasses import asdict
 import yaml
 from pymongo import MongoClient
 
-from modules.service import Microservice
+from mrf.modules.service import Microservice
 from mrf.modules.domain_data import Context
 from mrf.repositories.domain.data import RContext, transform_context_for_database
-from repositories.service.service import RMicroservice, transform_microservice_for_database
+from mrf.repositories.service.service import (
+    RMicroservice,
+    transform_microservice_for_database,
+)
 
 
 def save_contexts(contexts: list[Context]):
@@ -31,6 +34,7 @@ def save_contexts(contexts: list[Context]):
         context_dict = asdict(r_context)
         collection_context.insert_one(context_dict)
 
+
 def save_microservices(microservices: list[Microservice]):
     """
     Method for saving the reconstructed microservice information to a database.
@@ -49,7 +53,6 @@ def save_microservices(microservices: list[Microservice]):
     for r_microservice in r_microservices:
         microservice_dict = asdict(r_microservice)
         collection_microservices.insert_one(microservice_dict)
-
 
 
 def __setup_database():

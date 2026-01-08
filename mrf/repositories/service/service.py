@@ -7,7 +7,7 @@ information, e.g., file paths, into a suitable format for persistence.
 from dataclasses import dataclass, field
 from enum import Enum
 
-from mrf.modules.domain_data import ComplexType
+from mrf.modules.domain_data import ComplexType, PrimitiveType
 from mrf.modules.service import Microservice, Interface, Operation, Parameter
 from mrf.repositories.common import RData, to_rdata
 from mrf.repositories.domain.data import RPrimitiveType, RComplexType
@@ -27,8 +27,8 @@ class RCommunicationType(Enum):
 @dataclass
 class RParameter:
     name: str
-    communication_type: RCommunicationType
-    exchange_pattern: RExchangePattern
+    communication_type: str
+    exchange_pattern: str
     primitive_parameter_type: RPrimitiveType | None
     complex_parameter_type: RComplexType | None
     data: list[RData] = field(init=False)
@@ -133,8 +133,9 @@ def __to_rparameter(parameter: Parameter) -> RParameter:
             parameter.type.class_type.value,
         )
         r_complex_type = rcomplex_type
+
     else:
-        r_primitive_type = parameter.type
+        r_primitive_type = RPrimitiveType(parameter.type.name)
 
     r_parameter = RParameter(
         parameter.name,

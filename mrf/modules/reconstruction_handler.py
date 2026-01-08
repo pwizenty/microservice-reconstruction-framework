@@ -10,7 +10,7 @@ from mrf.plugins.reconstruction_plugin import PluginType
 from mrf.plugins.service.spring.spring_plugin import SpringPlugin
 from mrf.repositories.mongo_repository import save_contexts
 from mrf.utilities.command_line import SourceFile
-from repositories.mongo_repository import save_microservices
+from mrf.repositories.mongo_repository import save_microservices
 
 
 class ReconstructionHandler:

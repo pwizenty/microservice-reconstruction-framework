@@ -4,7 +4,7 @@ Module with common elements for database persistance.
 
 from dataclasses import dataclass
 
-from plugins.common.common_plugin import Data
+from mrf.plugins.common.common_plugin import Data
 
 
 @dataclass
@@ -21,7 +21,9 @@ class RData:
     name: str
     values = {}
 
+
 def to_rdata(data: Data):
     r_data = RData(data.name)
     r_data.values = data.values
     return r_data
+
