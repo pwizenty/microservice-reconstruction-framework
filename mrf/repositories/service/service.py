@@ -3,13 +3,14 @@ Module for transforming the reconstructed architecture information from an
 intermediate service format, suited for the reconstruction process with additional,
 information, e.g., file paths, into a suitable format for persistence.
 """
+
 from dataclasses import dataclass, field
 from enum import Enum
 
-from modules.domain_data import ComplexType
-from modules.service import Microservice, Interface, Operation, Parameter
-from repositories.common import RData, to_rdata
-from repositories.domain.data import RPrimitiveType, RComplexType
+from mrf.modules.domain_data import ComplexType
+from mrf.modules.service import Microservice, Interface, Operation, Parameter
+from mrf.repositories.common import RData, to_rdata
+from mrf.repositories.domain.data import RPrimitiveType, RComplexType
 
 
 class RExchangePattern(Enum):
@@ -21,6 +22,7 @@ class RExchangePattern(Enum):
 class RCommunicationType(Enum):
     SYNCHRONOUS = "Synchronous"
     ASYNCHRONOUS = "Asynchronous"
+
 
 @dataclass
 class RParameter:
@@ -34,6 +36,7 @@ class RParameter:
     def __post_init__(self):
         self.data = []
 
+
 @dataclass
 class ROperation:
     name: str
@@ -43,6 +46,7 @@ class ROperation:
     def __post_init__(self):
         self.data = []
         self.parameters = []
+
 
 @dataclass
 class RInterface:
@@ -54,6 +58,7 @@ class RInterface:
     def __post_init__(self):
         self.data = []
         self.operations = []
+
 
 @dataclass
 class RMicroservice:
@@ -87,6 +92,7 @@ def transform_microservice_for_database(microservice: Microservice) -> RMicroser
 
     return r_microservice
 
+
 def __to_rinterface(interface: Interface) -> RInterface:
     r_interface = RInterface(interface.qualified_name, interface.name)
 
@@ -97,6 +103,7 @@ def __to_rinterface(interface: Interface) -> RInterface:
         r_interface.data.append(to_rdata(data))
 
     return r_interface
+
 
 def __to_roperation(operation: Operation) -> ROperation:
     r_operation = ROperation(operation.name)
@@ -109,24 +116,33 @@ def __to_roperation(operation: Operation) -> ROperation:
     return r_operation
 
 
-
 def __to_rparameter(parameter: Parameter) -> RParameter:
-    r_communication_type = RCommunicationType[parameter.communication_type.value.upper()]
-    r_exchange_pattern = RExchangePattern[parameter.exchange_pattern.value.upper()]
+    r_communication_type = RCommunicationType[
+        parameter.communication_type.value.upper()
+    ].value
+    r_exchange_pattern = RExchangePattern[
+        parameter.exchange_pattern.value.upper()
+    ].value
     r_complex_type = None
     r_primitive_type = None
 
-
-
-    if parameter.type is ComplexType:
-        r_complex_type = parameter.type
+    if isinstance(parameter.type, ComplexType):
+        rcomplex_type = RComplexType(
+            parameter.type.name,
+            parameter.type.qualified_name,
+            parameter.type.class_type.value,
+        )
+        r_complex_type = rcomplex_type
     else:
         r_primitive_type = parameter.type
 
-    r_parameter = RParameter(parameter.name,r_communication_type, r_exchange_pattern, r_primitive_type, r_complex_type)
+    r_parameter = RParameter(
+        parameter.name,
+        r_communication_type,
+        r_exchange_pattern,
+        r_primitive_type,
+        r_complex_type,
+    )
     for data in parameter.data:
         r_parameter.data.append(to_rdata(data))
     return r_parameter
-
-
-
