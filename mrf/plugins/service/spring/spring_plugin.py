@@ -5,6 +5,7 @@ source code artifacts.
 
 from typing import List
 
+from dataclasses import dataclass
 from javalang.tree import (
     Annotation,
     CompilationUnit,
@@ -35,7 +36,7 @@ from mrf.utilities.java_utils import (
     has_annotation,
     load_classes,
     match_microservice_interface,
-    resolve_complex_field,
+    resolve_complex_field, TECHNOLOGY_SPRING_TYPES,
 )
 from mrf.utilities.sping import (
     APPLICATION_CLASS,
@@ -45,7 +46,13 @@ from mrf.utilities.sping import (
     REST_OPERATIONS,
     SPRING_BOOT_APPLICATION,
 )
+from utilities.java_utils import COLLECTION_TYPES, adjust_qualified_name
 
+
+@dataclass
+class SpringReconstructionResult:
+    microservices: list[Microservice]
+    complex_types: list[ComplexType]
 
 class SpringPlugin(Plugin):
     """
@@ -56,6 +63,7 @@ class SpringPlugin(Plugin):
     def __init__(self):
         self.java_classes: List[JavaClassArtifact] = []
         self.microservices: List[Microservice] = []
+        self.complex_types: List[ComplexType] = []
         self.name: str
 
     def file_types(self):
@@ -69,7 +77,7 @@ class SpringPlugin(Plugin):
 
     def execute_reconstruction(
         self, source_files: list[SourceFile]
-    ) -> list[Microservice]:
+    ) -> SpringReconstructionResult:
         """
         Execute the reconstruction functionality of the Spring plugin.
 
@@ -91,7 +99,7 @@ class SpringPlugin(Plugin):
         for clazz in self.java_classes:
             self.__reconstruct_interface(clazz)
 
-        return self.microservices
+        return SpringReconstructionResult(self.microservices, self.complex_types)
 
     def __reconstruct_microservice(
         self, java_class: JavaClassArtifact
@@ -104,7 +112,7 @@ class SpringPlugin(Plugin):
             qualified_name = (
                 get_qualified_class_name(java_class.tree)
                 .removesuffix(APPLICATION_CLASS.lower())
-                .removesuffix("." + name.lower())
+                #.removesuffix("." + name.lower())
             )
             microservice = Microservice(qualified_name, name, java_class.path)
             public_data = Data(MICROSERVICE_PUBLIC)
@@ -138,6 +146,8 @@ class SpringPlugin(Plugin):
                 if has_annotation(method, REST_OPERATIONS):
                     operation = self.__reconstruct_operation(method, java_class.tree)
                     interface.operations.append(operation)
+
+            interface.qualified_name = adjust_qualified_name(service.qualified_name, interface.qualified_name)
             service.interfaces.append(interface)
 
     def __reconstruct_operation(
@@ -153,7 +163,8 @@ class SpringPlugin(Plugin):
         formal_parameters = getattr(method, "parameters")
 
         operation.parameters.extend(self.__handle_parameters(formal_parameters, unit))
-        operation.parameters.append(self.__handle_return_type(return_type, unit))
+        if return_type != "void":
+            operation.parameters.append(self.__handle_return_type(return_type, unit))
 
         return operation
 
@@ -183,8 +194,7 @@ class SpringPlugin(Plugin):
     def __handle_parameter(
         self,
         formal_parameter: FormalParameter,
-        unit: CompilationUnit,
-        exch_patter=ExchangePattern.IN,
+        unit: CompilationUnit
     ) -> Parameter:
         name = getattr(formal_parameter, "name")
         com_type = CommunicationType.SYNCHRONOUS
@@ -198,11 +208,30 @@ class SpringPlugin(Plugin):
         self, reference_type: ReferenceType, unit: CompilationUnit
     ) -> Parameter:
         name = getattr(reference_type, "name")
+
+        if reference_type.name.lower() in TECHNOLOGY_SPRING_TYPES:
+            return self.__handle_specific_return_type(reference_type, unit)
+        else:
+            com_type = CommunicationType.SYNCHRONOUS
+            exch_pat = ExchangePattern.OUT
+            type = self.__handle_parameter_type(reference_type, unit)
+            return Parameter(name, com_type, exch_pat, type)
+
+    def __handle_specific_return_type(self, reference_type: ReferenceType, unit: CompilationUnit) -> Parameter:
+        arguments = getattr(reference_type, "arguments")
         com_type = CommunicationType.SYNCHRONOUS
         exch_pat = ExchangePattern.OUT
-        type = self.__handle_parameter_type(reference_type, unit)
-        parameter = Parameter(name, com_type, exch_pat, type)
-        return parameter
+        if arguments is not None:
+            parameter_ref_type = getattr(arguments[0], "type")
+            p_type = self.__handle_parameter_type(parameter_ref_type, unit)
+            parameter = Parameter(p_type.name, com_type, exch_pat, p_type)
+            data = Data(getattr(reference_type, "name"))
+            parameter.data.append(data)
+            return parameter
+        else:
+            p_type = self.__handle_parameter_type(reference_type, unit)
+            parameter = Parameter(p_type.name, com_type, exch_pat, p_type)
+            return parameter
 
     def __handle_parameter_type(
         self, reference_type: ReferenceType, unit: CompilationUnit
@@ -219,9 +248,27 @@ class SpringPlugin(Plugin):
     def __handle_complex_type(
         self, reference_type: ReferenceType, unit: CompilationUnit
     ) -> ComplexType:
+        class_type = ClassType.DATA_STRUCTURE
+        if reference_type.name.lower() in COLLECTION_TYPES:
+            class_type = ClassType.COLLECTION
+            arguments = getattr(reference_type, "arguments")
+            reference_type = getattr(arguments[0], "type")
+
         name = getattr(reference_type, "name")
         import_type = resolve_complex_field(unit, name)
         complex_type = ComplexType(
-            name, import_type.qualified_import_name, ClassType.DATA_STRUCTURE
+            name, import_type.qualified_import_name, class_type
         )
+        qualified_name = self.__find_microservice(complex_type.qualified_name)
+        complex_type.qualified_name = adjust_qualified_name(qualified_name, complex_type.qualified_name)
+        self.complex_types.append(complex_type)
         return complex_type
+
+    def __find_microservice(self, complex_type_qualified_name: str):
+        for ms in self.microservices:
+            if (
+                    complex_type_qualified_name == ms.qualified_name.removesuffix(ms.name)
+                    or complex_type_qualified_name.startswith(ms.qualified_name.removesuffix(ms.name.lower()))
+            ):
+                return ms.qualified_name
+        return None

@@ -12,5 +12,6 @@ REST_OPERATIONS = ["PostMapping", "PutMapping", "GetMapping", "DeleteMapping"]
 # Application class string
 APPLICATION_CLASS = "Application"
 CONTROLLER_CLASS = "Controller"
+SERVICE_STRING = "Service"
 # Spring infrastructure exclude list
 INFRASTRUCTURE_TECHNOLOGIES = ["eureka", "zuul"]

@@ -34,13 +34,13 @@ from mrf.utilities.java_utils import (
     resolve_complex_field,
     DependencyType,
     ImportType,
-    has_annotation,
+    has_annotation, adjust_qualified_name,
 )
 from mrf.utilities.sping import (
     CONTEXT_ANNOTATION,
     APPLICATION_CLASS,
     ENTITY_ANNOTATION,
-    ID_ANNOTATIONS,
+    ID_ANNOTATIONS, SERVICE_STRING,
 )
 from mrf.utilities.sping import INFRASTRUCTURE_TECHNOLOGIES
 from mrf.utilities.java_utils import load_classes
@@ -84,6 +84,19 @@ class JavaPlugin(Plugin):
         for clazz in self.java_classes:
             self.__reconstruct_entity(clazz)
 
+        self.__adjust_qualified_names()
+
+        return self.contexts
+
+    def reconstruct_dependencies(self, source_files: list[SourceFile], complex_types: list[ComplexType]) -> list[Context]:
+        self.java_classes.extend(load_classes(source_files, self.file_types()))
+        for clazz in self.java_classes:
+            context = self.__reconstruct_context(clazz)
+            if context is not None:
+                self.contexts.append(context)
+        for c_type in complex_types:
+            self.__handle_project_dependency(c_type.qualified_name)
+        self.__adjust_qualified_names()
         return self.contexts
 
     def __reconstruct_context(self, java_class: JavaClassArtifact) -> Context | None:
@@ -96,7 +109,7 @@ class JavaPlugin(Plugin):
             qualified_name = (
                 get_qualified_class_name(java_class.tree)
                 .removesuffix(APPLICATION_CLASS.lower())
-                .removesuffix("." + name.lower())
+                #.removesuffix("." + name.lower())
             )
             # Remove potential doubling name parts, e.g.,
             # "com.lakesidemutual.customercore.customercore" to
@@ -114,7 +127,7 @@ class JavaPlugin(Plugin):
             context_name = self.__find_context_name(structure.qualified_name)
             context = next(
                 (c for c in self.contexts if c.qualified_name == context_name),
-                self.__handle_unkown_context(),
+                self.__handle_unknown_context(),
             )
             context.data_structures.append(structure)
 
@@ -195,7 +208,8 @@ class JavaPlugin(Plugin):
 
     def __handle_project_dependency(self, import_name: str) -> ComplexType:
         exist = self.__check_for_dependency(import_name)
-        if exist is False:
+        primitive_parameter = import_name.lower().endswith(tuple(PRIMITIVE_JAVA_TYPES))
+        if exist is False and primitive_parameter is False:
             class_name = import_name.split(".").pop()
             java_class = next(
                 (
@@ -208,10 +222,13 @@ class JavaPlugin(Plugin):
             structure = self.__reconstruct_data_structure(java_class)
             context_name = self.__find_context_name(structure.qualified_name)
             context = next(
-                (c for c in self.contexts if c.qualified_name == context_name)
+                (c for c in self.contexts if c.qualified_name.startswith(context_name.lower()))
             )
-
-            context.data_structures.append(structure)
+            if not any(
+                existing.name == structure.name
+                for existing in context.data_structures
+            ):
+                context.data_structures.append(structure)
             complex_type = ComplexType(
                 structure.name, structure.qualified_name, ClassType.DATA_STRUCTURE
             )
@@ -250,7 +267,7 @@ class JavaPlugin(Plugin):
             )
             return bool(struct)
 
-    def __handle_unkown_context(self) -> Context:
+    def __handle_unknown_context(self) -> Context:
         context = next(
             (c for c in self.contexts if c.qualified_name == UNKNOWN_CONTEXT), None
         )
@@ -258,3 +275,21 @@ class JavaPlugin(Plugin):
             return Context(UNKNOWN_CONTEXT, UNKNOWN_CONTEXT, None)
         else:
             return context
+
+    """
+    Adjust qualified name to match the context name. 
+    This is necessary to deal with sub-packages in Java, e.g., 
+
+    Context name reconstructed from the Java class with the @SpringBootApplication annotation.
+    'de.dmsa.parkandcharge.station'
+
+    Qualified name from reconstructed data structures with the @Entiy annotation.
+    'de.dmsa.parkandcharge.station.domain.processedevent'
+
+    Remove the *.domain. part from the qualified name. 
+    """
+    def __adjust_qualified_names(self):
+        for context in self.contexts:
+            for data_structure in context.data_structures:
+                data_structure.qualified_name = adjust_qualified_name(context.qualified_name, data_structure.qualified_name)
+

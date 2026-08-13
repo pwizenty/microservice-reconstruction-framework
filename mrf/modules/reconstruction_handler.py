@@ -48,9 +48,13 @@ class ReconstructionHandler:
 
     def __reconstruct_service(self, source_files: list[SourceFile]):
         if PluginType.SPRING in self.plugins:
+            results = SpringPlugin().execute_reconstruction(source_files)
+            contexts = JavaPlugin().reconstruct_dependencies(source_files, results.complex_types)
             self.reconstructed_service.extend(
-                SpringPlugin().execute_reconstruction(source_files)
+                results.microservices
             )
+            self.reconstructed_data = self.__merge_contexts(self.reconstructed_data, contexts)
+            print()
 
     def reconstruct_save(self):
         """
@@ -58,3 +62,17 @@ class ReconstructionHandler:
         """
         save_contexts(self.reconstructed_data)
         save_microservices(self.reconstructed_service)
+
+    def __merge_contexts(self, base: list[Context], other: list[Context]) -> list[Context]:
+        for ctx in other:
+            existing = next((c for c in base if c.name == ctx.name), None)
+            if existing is None:
+                base.append(ctx)
+                continue
+            for structure in ctx.data_structures:
+                if not any(s.name == structure.name for s in existing.data_structures):
+                    existing.data_structures.append(structure)
+            for enum in ctx.enums:
+                if not any(e.name == enum.name for e in existing.enums):
+                    existing.enums.append(enum)
+        return base

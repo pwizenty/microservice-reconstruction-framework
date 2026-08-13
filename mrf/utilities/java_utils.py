@@ -16,12 +16,21 @@ from javalang.tree import (
     Annotation,
     InterfaceDeclaration,
     EnumDeclaration,
-    TypeDeclaration,
+    TypeDeclaration, RecordDeclaration,
 )
 
 from mrf.utilities.sping import APPLICATION_CLASS
 from mrf.utilities.command_line import SourceFile
 from mrf.plugins.common.common_plugin import JavaClassArtifact
+
+
+TECHNOLOGY_SPRING_TYPES = [
+    "responseentity"
+]
+
+COLLECTION_TYPES = [
+    "list"
+]
 
 PRIMITIVE_JAVA_TYPES = [
     "byte",
@@ -35,6 +44,8 @@ PRIMITIVE_JAVA_TYPES = [
     "boolean",
     "string",
     "date",
+    "instant",
+    "bigdecimal"
 ]
 # Level for matching qualified names, e.g.,
 # 'com.lakesidemutual.customercore.domain.customer' to
@@ -131,7 +142,8 @@ def get_class_from_tree(unit: CompilationUnit) -> TypeDeclaration:
             ClassDeclaration
             | InterfaceDeclaration
             | EnumDeclaration
-            | AnnotationDeclaration,
+            | AnnotationDeclaration
+            | RecordDeclaration,
         )
     ]
 
@@ -344,7 +356,6 @@ def __build_qualified_name(tree: CompilationUnit, field_type: str) -> str:
     if package_name is not None:
         qualified_field_type = package_name + "." + field_type
         return qualified_field_type
-    return "cc"
 
 
 def __get_package_name(tree: CompilationUnit) -> str:
@@ -373,3 +384,7 @@ def __build_matches(string1: str, string2: str, split_char: str) -> list[str]:
             # Stop at first not matching part
             break
     return matches
+
+def adjust_qualified_name(context_qualified_name: str, data_structure_qualified_name: str) -> str:
+    name = data_structure_qualified_name.rsplit(".", 1)[-1]
+    return f"{context_qualified_name}.{name}"

@@ -1,7 +1,7 @@
 # Core function dependencies
 pandas
 argparse
-javalang
+ljavalang
 pathlib
 pymongo
 pyyaml
