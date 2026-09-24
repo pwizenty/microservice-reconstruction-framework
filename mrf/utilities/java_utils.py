@@ -98,7 +98,7 @@ class NoJavaDeclrationException(Exception):
 
 class NoProjectDependencyFoundException(Exception):
     """
-    Exepction when the the project dependency could not be resolved.
+    Exepction when the project dependency could not be resolved.
     """
 
     def __init__(self, message: str):
@@ -230,7 +230,7 @@ def get_qualified_class_name(tree: CompilationUnit) -> str:
     if hasattr(tree, "package"):
         package = getattr(tree, "package")
         package_name = package.name
-        return package_name + "." + class_name.lower()
+        return package_name + "." + class_name
     # Return simple class name, when package is not set
     return class_name
 
@@ -266,7 +266,7 @@ def adjust_name(name: str) -> str:
     Returns:
         adjusted_name (str): Adjusted name
     """
-    return name.removesuffix(APPLICATION_CLASS.lower())
+    return name.removesuffix(APPLICATION_CLASS)
 
 
 def match_context(
@@ -387,4 +387,5 @@ def __build_matches(string1: str, string2: str, split_char: str) -> list[str]:
 
 def adjust_qualified_name(context_qualified_name: str, data_structure_qualified_name: str) -> str:
     name = data_structure_qualified_name.rsplit(".", 1)[-1]
-    return f"{context_qualified_name}.{name}"
+    adjusted_name= f"{context_qualified_name}.{name}"
+    return adjusted_name

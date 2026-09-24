@@ -72,6 +72,9 @@ class ReconstructionHandler:
             for structure in ctx.data_structures:
                 if not any(s.name == structure.name for s in existing.data_structures):
                     existing.data_structures.append(structure)
+            for collection in ctx.collections:
+                if not any(s.name == collection.name for s in existing.collections):
+                    existing.collections.append(collection)
             for enum in ctx.enums:
                 if not any(e.name == enum.name for e in existing.enums):
                     existing.enums.append(enum)

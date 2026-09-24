@@ -86,6 +86,20 @@ class Enumeration:
 
     name: str
 
+@dataclass
+class Collection:
+    """
+    Collection type for domain information.
+    """
+
+    qualified_name: str
+    name: str
+    field_type: PrimitiveType | ComplexType
+    data: list[Data] = field(init=False)
+
+    def __post_init__(self):
+        self.data = []
+
 
 @dataclass
 class Context:
@@ -108,4 +122,5 @@ class Context:
         self.origin_file = origin_file
         self.data_structures: List[DataStructure] = []
         self.enums: List[Enumeration] = []
+        self.collections: List[Collection] = []
         self.data: List[Data] = []

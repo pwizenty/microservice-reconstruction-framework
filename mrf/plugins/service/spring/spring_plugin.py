@@ -2,7 +2,7 @@
 Module with class and methods to reconstruction microservices from Java based
 source code artifacts.
 """
-
+from copy import deepcopy
 from typing import List
 
 from dataclasses import dataclass
@@ -111,7 +111,7 @@ class SpringPlugin(Plugin):
                 return None
             qualified_name = (
                 get_qualified_class_name(java_class.tree)
-                .removesuffix(APPLICATION_CLASS.lower())
+                .removesuffix(APPLICATION_CLASS)
                 #.removesuffix("." + name.lower())
             )
             microservice = Microservice(qualified_name, name, java_class.path)
@@ -128,10 +128,10 @@ class SpringPlugin(Plugin):
         clazz = get_class_from_tree(java_class.tree)
         if has_annotation(clazz, [REST_CONTROLLER]):
             name = get_class_name(clazz).removesuffix(CONTROLLER_CLASS)
-            qualifed_name = get_qualified_class_name(java_class.tree).removesuffix(
+            qualified_name = get_qualified_class_name(java_class.tree).removesuffix(
                 CONTROLLER_CLASS
             )
-            interface = Interface(qualifed_name, name)
+            interface = Interface(qualified_name, name)
             service = next(
                 microservice
                 for microservice in self.microservices
@@ -253,6 +253,7 @@ class SpringPlugin(Plugin):
             class_type = ClassType.COLLECTION
             arguments = getattr(reference_type, "arguments")
             reference_type = getattr(arguments[0], "type")
+            print()
 
         name = getattr(reference_type, "name")
         import_type = resolve_complex_field(unit, name)
@@ -261,6 +262,16 @@ class SpringPlugin(Plugin):
         )
         qualified_name = self.__find_microservice(complex_type.qualified_name)
         complex_type.qualified_name = adjust_qualified_name(qualified_name, complex_type.qualified_name)
+        if complex_type.class_type is ClassType.COLLECTION:
+            complex_type_list = deepcopy(complex_type)
+            complex_type.class_type = ClassType.DATA_STRUCTURE
+            complex_type_list.name = complex_type.name + "List"
+            complex_type_list.qualified_name = complex_type.qualified_name + "List"
+            if name.lower() not in PRIMITIVE_JAVA_TYPES:
+                self.complex_types.append(complex_type)
+            self.complex_types.append(complex_type_list)
+            return complex_type_list
+
         self.complex_types.append(complex_type)
         return complex_type
 
@@ -268,7 +279,7 @@ class SpringPlugin(Plugin):
         for ms in self.microservices:
             if (
                     complex_type_qualified_name == ms.qualified_name.removesuffix(ms.name)
-                    or complex_type_qualified_name.startswith(ms.qualified_name.removesuffix(ms.name.lower()))
+                    or complex_type_qualified_name.startswith(ms.qualified_name.removesuffix(ms.name))
             ):
                 return ms.qualified_name
         return None

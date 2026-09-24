@@ -14,7 +14,7 @@ from mrf.modules.domain_data import (
     Field,
     PrimitiveType,
     ComplexType,
-    ClassType,
+    ClassType, Collection,
 )
 from mrf.repositories.common import RData, to_rdata
 
@@ -99,6 +99,27 @@ class RDataStructure:
         self.data = []
         self.fields = []
 
+@dataclass
+class RCollection:
+    """
+    Class for reconstructed collections.
+
+    Attributes:
+        name (str): Name of the data structure, e.g., User
+        qualified_name (str): Qualified name, e.g., de.fhdo.User
+        data ([RData]): Meta-data about the data structure
+        fields: ([RField]): Attributes of the data structure
+    """
+
+    name: str
+    qualified_name: str
+    primitive_field_type: RPrimitiveType | None
+    complex_field_type: RComplexType | None
+    data: list[RData] = field(init=False)
+
+    def __post_init__(self):
+        self.data = []
+        self.fields = []
 
 @dataclass
 class REnumeration:
@@ -110,6 +131,7 @@ class REnumeration:
     """
 
     name: str
+
 
 
 @dataclass
@@ -128,11 +150,13 @@ class RContext:
     name: str
     qualified_name: str
     data_structures: list[RDataStructure] = field(init=False)
+    collections: list[RCollection] = field(init=False)
     enums: list[REnumeration] = field(init=False)
     data: list[RData] = field(init=False)
 
     def __post_init__(self):
         self.data_structures = []
+        self.collections = []
         self.enums = []
         self.data = []
 
@@ -156,6 +180,9 @@ def __to_rcontext(context: Context):
 
     for d in context.data_structures:
         r_context.data_structures.append(__to_rdata_structure(d))
+
+    for c in context.collections:
+        r_context.collections.append(__to_rcollection(c))
     return r_context
 
 
@@ -171,6 +198,15 @@ def __to_rdata_structure(data_structure: DataStructure):
         r_data_structure.fields.append(__to_rfield(f))
 
     return r_data_structure
+
+def __to_rcollection(collection: Collection) -> RCollection:
+    if isinstance(collection.field_type, PrimitiveType):
+        r_type = __to_rprimitive_type(collection.field_type)
+        return RCollection(collection.name, collection.qualified_name, r_type, None)
+    else:
+        r_type = __to_rcomplex_type(collection.field_type)
+        return RCollection(collection.name, collection.qualified_name, None, r_type)
+
 
 
 def __to_rfield(field_: Field):
@@ -196,7 +232,7 @@ def __to_rprimitive_type(primitive_field_type: PrimitiveType):
     return r_primitive_type
 
 
-def __to_rcomplex_type(complex_field_type: ComplexType):
+def __to_rcomplex_type(complex_field_type: ComplexType) -> RComplexType:
     class_type = __to_rclass_type(complex_field_type.class_type)
     r_complex_type = RComplexType(
         complex_field_type.name, complex_field_type.qualified_name, class_type
