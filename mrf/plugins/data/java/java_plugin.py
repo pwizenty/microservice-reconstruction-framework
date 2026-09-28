@@ -1,65 +1,62 @@
-"""
-Module of the Java plugin for reconstructing domain data information based of
+"""Module of the Java plugin for reconstructing domain data information based of
 Java source code artifacts. This plugin analyses annotations form the Spring
 framework, e.g., @Entity or @SpringBootApplication to identify relevant
 information.
 """
-from ipaddress import collapse_addresses
-from typing import List
 
-from javalang.tree import FieldDeclaration, ReferenceType, TypeArgument
+from javalang.tree import FieldDeclaration, TypeArgument
 
 from mrf.modules.domain_data import (
+    DDD_ENTITY,
+    DDD_IDENTIFIER,
     UNKNOWN_CONTEXT,
     UNKNOWN_TYPE,
+    ClassType,
+    Collection,
+    ComplexType,
     Context,
     DataStructure,
-    DDD_ENTITY,
-    PrimitiveType,
     Field,
-    ComplexType,
-    ClassType,
-    DDD_IDENTIFIER, Collection,
+    PrimitiveType,
 )
 from mrf.plugins.common.common_plugin import Data, JavaClassArtifact
 from mrf.plugins.reconstruction_plugin import Plugin
 from mrf.utilities.command_line import SourceFile
 from mrf.utilities.java_utils import (
-    get_class_from_tree,
-    get_class_name,
-    get_qualified_class_name,
+    COLLECTION_TYPES,
     PRIMITIVE_JAVA_TYPES,
-    get_field_name,
-    match_context,
-    resolve_complex_field,
     DependencyType,
     ImportType,
-    has_annotation, adjust_qualified_name,
+    adjust_qualified_name,
+    get_class_from_tree,
+    get_class_name,
+    get_field_name,
+    get_qualified_class_name,
+    has_annotation,
+    load_classes,
+    match_context,
+    resolve_complex_field,
 )
 from mrf.utilities.sping import (
-    CONTEXT_ANNOTATION,
     APPLICATION_CLASS,
+    CONTEXT_ANNOTATION,
     ENTITY_ANNOTATION,
-    ID_ANNOTATIONS, SERVICE_STRING,
+    ID_ANNOTATIONS,
+    INFRASTRUCTURE_TECHNOLOGIES,
 )
-from mrf.utilities.sping import INFRASTRUCTURE_TECHNOLOGIES
-from mrf.utilities.java_utils import load_classes
-from utilities.java_utils import COLLECTION_TYPES
 
 
 class JavaPlugin(Plugin):
-    """
-    Main class of the Java plugin to reconstruct relevant information from the
+    """Main class of the Java plugin to reconstruct relevant information from the
     source code.
     """
 
     def __init__(self):
-        self.java_classes: List[JavaClassArtifact] = []
-        self.contexts: List[Context] = []
+        self.java_classes: list[JavaClassArtifact] = []
+        self.contexts: list[Context] = []
 
     def file_types(self):
-        """
-        Method to receives supported file types of the Java plugin.
+        """Method to receives supported file types of the Java plugin.
 
         Returns: Suffix of supported file types.
 
@@ -67,8 +64,7 @@ class JavaPlugin(Plugin):
         return [".java"]
 
     def execute_reconstruction(self, source_files: list[SourceFile]) -> list[Context]:
-        """
-        Method that executes the functionalities of the Java plugin.
+        """Method that executes the functionalities of the Java plugin.
 
         Args:
             source_files (): Array of source files for the reconstruction
@@ -89,7 +85,9 @@ class JavaPlugin(Plugin):
 
         return self.contexts
 
-    def reconstruct_dependencies(self, source_files: list[SourceFile], complex_types: list[ComplexType]) -> list[Context]:
+    def reconstruct_dependencies(
+        self, source_files: list[SourceFile], complex_types: list[ComplexType]
+    ) -> list[Context]:
         self.java_classes.extend(load_classes(source_files, self.file_types()))
         for clazz in self.java_classes:
             context = self.__reconstruct_context(clazz)
@@ -112,9 +110,10 @@ class JavaPlugin(Plugin):
             if any(t in name.lower() for t in INFRASTRUCTURE_TECHNOLOGIES):
                 return None
             qualified_name = (
-                get_qualified_class_name(java_class.tree)
-                .removesuffix(APPLICATION_CLASS)
-                #.removesuffix("." + name.lower())
+                get_qualified_class_name(java_class.tree).removesuffix(
+                    APPLICATION_CLASS
+                )
+                # .removesuffix("." + name.lower())
             )
             # Remove potential doubling name parts, e.g.,
             # "com.lakesidemutual.customercore.customercore" to
@@ -153,9 +152,9 @@ class JavaPlugin(Plugin):
     def __reconstruct_primitive_type(
         self, field_decs: list[FieldDeclaration]
     ) -> list[Field]:
-        primitive_fields: List[Field] = []
+        primitive_fields: list[Field] = []
         for f in field_decs:
-            type = getattr(f, "type")
+            type = f.type
             if type.name.lower() in PRIMITIVE_JAVA_TYPES:
                 field_type = type.name.lower()
                 field_name = get_field_name(f)
@@ -169,11 +168,11 @@ class JavaPlugin(Plugin):
         return primitive_fields
 
     def __reconstruct_complex_type(self, java_class: JavaClassArtifact) -> list[Field]:
-        complex_fields: List[Field] = []
+        complex_fields: list[Field] = []
         clazz = get_class_from_tree(java_class.tree)
 
         for f in clazz.fields:
-            type = getattr(f, "type")
+            type = f.type
             if type.name.lower() not in PRIMITIVE_JAVA_TYPES:
                 result = resolve_complex_field(java_class.tree, type.name)
                 complex_type = self.__handle_dependency(result)
@@ -184,18 +183,18 @@ class JavaPlugin(Plugin):
                     field.data.append(data)
 
                 if complex_type.class_type is ClassType.COLLECTION:
-                    list_type_reference = getattr(f, "type")
+                    list_type_reference = f.type
                     list_type = self.__find_type_argument(list_type_reference)
                     collection_type = None
-                    collection_type_name = getattr(list_type, "name")
+                    collection_type_name = list_type.name
                     if collection_type_name.lower() in PRIMITIVE_JAVA_TYPES:
                         collection_type = PrimitiveType(collection_type_name)
                     else:
-                        l_result = resolve_complex_field(java_class.tree, collection_type_name)
+                        l_result = resolve_complex_field(
+                            java_class.tree, collection_type_name
+                        )
                         collection_type = self.__handle_dependency(l_result)
                         collection_type.class_type = ClassType.COLLECTION
-
-
 
                     t = field_name[:1].upper() + field_name[1:] + "List"
 
@@ -203,7 +202,9 @@ class JavaPlugin(Plugin):
                     context_name = self.__find_context_name(qualified_name)
                     qualified_collection_name = context_name.rsplit(".", 1)[0] + "." + t
                     context = self.__find_context(qualified_name)
-                    collection = Collection(qualified_collection_name, t, collection_type)
+                    collection = Collection(
+                        qualified_collection_name, t, collection_type
+                    )
                     field = Field(t, collection_type)
                     # complex_fields.append(field)
                     context.collections.append(collection)
@@ -215,7 +216,7 @@ class JavaPlugin(Plugin):
             items = child if isinstance(child, (list, tuple)) else [child]
             for item in items:
                 if isinstance(item, TypeArgument):
-                    return getattr(item, "type")
+                    return item.type
         return None
 
     def __find_context_name(self, qualified_name: str) -> str:
@@ -249,7 +250,11 @@ class JavaPlugin(Plugin):
 
     def __handle_project_dependency(self, import_name: str) -> ComplexType:
         exist = self.__check_for_dependency(import_name)
-        primitive_parameter = import_name.removesuffix("List").lower().endswith(tuple(PRIMITIVE_JAVA_TYPES))
+        primitive_parameter = (
+            import_name.removesuffix("List")
+            .lower()
+            .endswith(tuple(PRIMITIVE_JAVA_TYPES))
+        )
         if exist is False and primitive_parameter is False:
             class_name = import_name.split(".").pop()
             class_name = class_name.removesuffix("List")
@@ -265,11 +270,10 @@ class JavaPlugin(Plugin):
             structure = self.__reconstruct_data_structure(java_class)
             context_name = self.__find_context_name(structure.qualified_name)
             context = next(
-                (c for c in self.contexts if c.qualified_name.startswith(context_name))
+                c for c in self.contexts if c.qualified_name.startswith(context_name)
             )
             if not any(
-                existing.name == structure.name
-                for existing in context.data_structures
+                existing.name == structure.name for existing in context.data_structures
             ):
                 context.data_structures.append(structure)
             complex_type = ComplexType(
@@ -278,15 +282,24 @@ class JavaPlugin(Plugin):
             if import_name.lower().endswith("list"):
                 complex_type.name = complex_type.name = import_name.split(".").pop()
                 complex_type.class_type = ClassType.COLLECTION
-                collection = Collection(complex_type.qualified_name, complex_type.name, complex_type)
+                collection = Collection(
+                    complex_type.qualified_name, complex_type.name, complex_type
+                )
                 context.collections.append(collection)
             return complex_type
         elif primitive_parameter is True:
-            complex_type = ComplexType(import_name.split(".").pop(), import_name, ClassType.COLLECTION)
-            collection = Collection(complex_type.qualified_name, complex_type.name, complex_type)
+            complex_type = ComplexType(
+                import_name.split(".").pop(), import_name, ClassType.COLLECTION
+            )
+            collection = Collection(
+                complex_type.qualified_name, complex_type.name, complex_type
+            )
             context_name = self.__find_context_name(import_name)
             context = next(
-                (c for c in self.contexts if c.qualified_name.startswith(context_name) or context_name.startswith(c.qualified_name))
+                c
+                for c in self.contexts
+                if c.qualified_name.startswith(context_name)
+                or context_name.startswith(c.qualified_name)
             )
             context.collections.append(collection)
             return complex_type
@@ -349,11 +362,13 @@ class JavaPlugin(Plugin):
 
     Remove the *.domain. part from the qualified name. 
     """
+
     def __adjust_qualified_names(self):
         for context in self.contexts:
             for data_structure in context.data_structures:
-                data_structure.qualified_name = adjust_qualified_name(context.qualified_name, data_structure.qualified_name)
-
+                data_structure.qualified_name = adjust_qualified_name(
+                    context.qualified_name, data_structure.qualified_name
+                )
 
     def __find_context(self, qualified_name: str) -> Context:
         context_name = self.__find_context_name(qualified_name)

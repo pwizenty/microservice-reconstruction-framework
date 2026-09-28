@@ -8,8 +8,7 @@ SPHINXBUILD   ?= sphinx-build
 SOURCEDIR     = docs/source
 BUILDDIR      = build
 
-PYTHON = python3
-PIP = pip3
+UV = uv
 SRC_DIR = mrf
 # TEST_DIR = test
 
@@ -27,12 +26,13 @@ help:
 
 all: run
 
+# Dependencies come from pyproject.toml + uv.lock (ADR-0005); there is no
+# requirements.txt / Pipfile any more.
 init:
-	$(PIP) install -r requirements.txt
+	$(UV) sync --locked --all-groups
 
-install:
-	$(PIP) install -e .
+install: init
 
 run:
-	$(PYTHON) -m mrf.main
+	$(UV) run mrf
 
