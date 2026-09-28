@@ -1,12 +1,16 @@
-"""Command line support for the Microservice Reconstruction Framework to handle
-its configuration and execution.
+"""Command line support for the Microservice Reconstruction Framework.
+
+Handles the configuration and execution of a reconstruction run.
 """
 
 import argparse as arg_parser
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 
 from mrf.plugins.reconstruction_plugin import PluginType
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -25,13 +29,12 @@ class SourceFile:
         self.suffix = suffix
 
 
-def handle_parameters():
-    """Handle command line parameter to configure the execution of the Microservice
-    reconstruction framework.
+def handle_parameters() -> arg_parser.Namespace:
+    """Handle the command line parameters of a reconstruction run.
 
     Returns:
-        plugin: Selected plugins for the reconstruction process
-        target: File path to the folder with the source code of the system
+        argparse.Namespace: Parsed arguments with ``plugin`` (selected plugins)
+        and ``target`` (path to the folder with the system's source code)
     """
     parser = arg_parser.ArgumentParser(
         description="Parse the command line arguments for the Microservice "
@@ -53,38 +56,49 @@ def handle_parameters():
 
 
 def load_file(file_path: str) -> str | None:
-    """[TODO:description]
+    """Read a single source code file.
 
-    :param file_path: [TODO:description]
-    :return: [TODO:description]
+    Args:
+        file_path (str): Path to the file to read.
+
+    Returns:
+        str | None: Content of the file, or ``None`` if it could not be read.
     """
     code = None
     try:
         with open(file_path, encoding="utf-8") as file:
             code = file.read()
     except FileNotFoundError:
-        print(f"The file {file_path} was not found.")
+        logger.warning("The file %s was not found.", file_path)
     except OSError:
-        print(f"An error occurred while reading the file {file_path}.")
+        logger.warning("An error occurred while reading the file %s.", file_path)
     except UnicodeDecodeError:
-        print(f"An UnicodeError occurred while reading the file {file_path}.")
+        logger.warning("An UnicodeError occurred while reading the file %s.", file_path)
     return code
 
 
-def load_files(file_path) -> list[Path]:
+def load_files(file_path: str) -> list[Path]:
+    """Collect all files below a directory.
+
+    Args:
+        file_path (str): Path to the folder with the system's source code
+
+    Returns:
+        [Path]: Paths of all files found below the folder
+    """
     directory = Path(file_path)
     files = [f for f in directory.rglob("*") if f.is_file()]
     return files
 
 
 def files_to_source_files(files) -> list[SourceFile]:
-    """Transforms a list of files to a list of :class: `SourceFile`.
+    """Transform a list of files into a list of :class:`SourceFile`.
 
     Args:
-        files (File):
+        files ([Path]): Paths of the files to read
 
     Returns:
-        source_files: a list of source files
+        [SourceFile]: Source files including their content and suffix
     """
     source_files = []
     for f in files:
@@ -96,15 +110,13 @@ def files_to_source_files(files) -> list[SourceFile]:
 
 
 def args_to_plugins(args) -> list[PluginType]:
-    """Select the plugins from the command line arguments and transform them into
-    a list pf :class: `PluginType`s.
+    """Select the plugins from the command line arguments.
 
     Args:
-        args ([str]): List of command line arguments
+        args (argparse.Namespace): Parsed command line arguments
 
     Returns:
-        [PluginType]: List of PluginType
-
+        [PluginType]: Plugins selected for the reconstruction process
     """
     plugins: list[PluginType] = []
     for a in args.plugin:

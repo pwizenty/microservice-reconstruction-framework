@@ -52,10 +52,11 @@ UNKNOWN_IMPORT_NAME = "UnknownImportName"
 
 
 class DependencyType(Enum):
-    """Enumeration for handling different types of dependencies, e.g.,
-    dependencies that are in the same Java package, dependencies that are in the
-    same project or external dependencies that are imported via a dependency
-    management tool like Maven.
+    """Type of a dependency between Java artifacts.
+
+    Distinguishes dependencies within the same Java package, within the same
+    project, and external dependencies imported via a dependency management
+    tool like Maven.
     """
 
     EXTERNAL_DEPENDENCY = "ExternalDependency"
@@ -73,7 +74,7 @@ class ImportType:
 
 
 class NoJavaDeclrationException(Exception):
-    """The Java class class has no valid Declaration"""
+    """Raised when a Java compilation unit has no valid declaration."""
 
     def __init__(self, unit: CompilationUnit, message: str):
         self.unit = unit
@@ -96,7 +97,7 @@ class NoProjectDependencyFoundException(Exception):
 
 
 def parse_java_file(file: str) -> CompilationUnit:
-    """Parse a given Java file into a ComplicationUnit
+    """Parse a given Java file into a CompilationUnit.
 
     Args:
         file (): Java file as a String
@@ -109,8 +110,10 @@ def parse_java_file(file: str) -> CompilationUnit:
 
 
 def get_class_from_tree(unit: CompilationUnit) -> TypeDeclaration:
-    """Transform a Java ComplicationUnit into a Java class if it is an instance of
-    a Enumeration, Interface, Package or Class.
+    """Transform a Java CompilationUnit into a Java class.
+
+    Applies if the unit is an instance of an Enumeration, Interface, Package
+    or Class.
 
     Args:
         unit (CompilationUnit): Java ComplicationUnit
@@ -138,14 +141,14 @@ def get_class_from_tree(unit: CompilationUnit) -> TypeDeclaration:
 
 
 def has_annotation(dec: Declaration, names: list[str]) -> bool:
-    """Method that check if a type has specific annotations.
+    """Check if a declaration has one of the given annotations.
 
     Args:
-        clazz (ClassDeclaration): Parsed Java class artifact
-        annotation_name (str): Name of the annotation
+        dec (Declaration): Parsed Java declaration
+        names ([str]): Names of the annotations to look for
 
     Returns:
-        True / False based of the class has the annotation
+        bool: ``True`` if the declaration carries one of the annotations
     """
     if hasattr(dec, "annotations"):
         annotation = find_annotation(dec.annotations, names)
@@ -177,7 +180,7 @@ def find_annotation(
 
 
 def get_class_name(clazz: TypeDeclaration) -> str:
-    """Get the name of a Java class
+    """Get the name of a Java class.
 
     Args:
         clazz (ClassDeclaration): Java class
@@ -192,7 +195,7 @@ def get_class_name(clazz: TypeDeclaration) -> str:
 
 
 def get_qualified_class_name(tree: CompilationUnit) -> str:
-    """Get the qualified name of a class from a ComplicationUnit
+    """Get the qualified name of a class from a CompilationUnit.
 
     Args:
         tree (): ComplicationUnit of a Java class artifact
@@ -231,8 +234,10 @@ def get_field_name(field: FieldDeclaration) -> str:
 
 
 def adjust_name(name: str) -> str:
-    """Remove specific naming parts from a string, e.g., remove "Application" from
-    the class name "CustomerCoreApplication".
+    """Remove specific naming parts from a string.
+
+    For example, remove "Application" from the class name
+    "CustomerCoreApplication".
 
     This is dane because the "Application" suffix does not add any value about
     the domain to the class name, but is a used to best practices in the
@@ -263,7 +268,7 @@ def match_context(
 
 
 def resolve_complex_field(tree: CompilationUnit, field_type: str) -> ImportType:
-    """Resolve the qualified name of a complex type based on the type of dependency
+    """Resolve the qualified name of a complex type from its dependency type.
 
     Args:
         tree (CompilationUnit): Unit of the class that the type is in
@@ -323,6 +328,16 @@ def load_classes(
 
 
 def match_microservice_interface(microservice_name: str, interface_name: str) -> bool:
+    """Check whether an interface belongs to a microservice.
+
+    Args:
+        microservice_name (str): Qualified name of the microservice
+        interface_name (str): Qualified name of the interface
+
+    Returns:
+        bool: ``True`` if both qualified names match up to
+        :data:`HIERARCHY_LEVEL` package levels
+    """
     return __has_matching_name(microservice_name, interface_name)
 
 
@@ -342,9 +357,7 @@ def __get_package_name(tree: CompilationUnit) -> str:
 
 def __has_matching_name(name1: str, name2: str) -> bool:
     matched_parts = __build_matches(name1, name2, ".")
-    if len(matched_parts) < HIERARCHY_LEVEL:
-        return False
-    return True
+    return len(matched_parts) >= HIERARCHY_LEVEL
 
 
 def __build_matches(string1: str, string2: str, split_char: str) -> list[str]:
@@ -352,7 +365,9 @@ def __build_matches(string1: str, string2: str, split_char: str) -> list[str]:
     string1_parts = string1.split(split_char)
     string2_parts = string2.split(split_char)
 
-    for part1, part2 in zip(string1_parts, string2_parts):
+    # strict=False on purpose: the names usually differ in length and
+    # matching stops at the first differing part anyway.
+    for part1, part2 in zip(string1_parts, string2_parts, strict=False):
         if part1 == part2:
             matches.append(part1)
         else:
@@ -364,6 +379,15 @@ def __build_matches(string1: str, string2: str, split_char: str) -> list[str]:
 def adjust_qualified_name(
     context_qualified_name: str, data_structure_qualified_name: str
 ) -> str:
+    """Re-root a data structure's qualified name onto its context.
+
+    Args:
+        context_qualified_name (str): Qualified name of the context
+        data_structure_qualified_name (str): Qualified name of the structure
+
+    Returns:
+        str: Qualified name of the structure below the context
+    """
     name = data_structure_qualified_name.rsplit(".", 1)[-1]
     adjusted_name = f"{context_qualified_name}.{name}"
     return adjusted_name

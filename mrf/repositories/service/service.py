@@ -1,6 +1,9 @@
-"""Module for transforming the reconstructed architecture information from an
-intermediate service format, suited for the reconstruction process with additional,
-information, e.g., file paths, into a suitable format for persistence.
+"""Persistence format for reconstructed microservices.
+
+Transforms the reconstructed architecture information from the intermediate
+service format, which carries additional information needed during the
+reconstruction process such as file paths, into a format suited for
+persistence.
 """
 
 from dataclasses import dataclass, field
@@ -13,18 +16,33 @@ from mrf.repositories.domain.data import RComplexType, RPrimitiveType
 
 
 class RExchangePattern(Enum):
+    """Persistence representation of :class:`ExchangePattern`."""
+
     IN = "In"
     OUT = "Out"
     INOUT = "Inout"
 
 
 class RCommunicationType(Enum):
+    """Persistence representation of :class:`CommunicationType`."""
+
     SYNCHRONOUS = "Synchronous"
     ASYNCHRONOUS = "Asynchronous"
 
 
 @dataclass
 class RParameter:
+    """Persistence representation of a :class:`Parameter`.
+
+    Attributes:
+        name (str): Name of the parameter
+        communication_type (str): Synchronous or asynchronous
+        exchange_pattern (str): Direction of the exchange
+        primitive_parameter_type (RPrimitiveType | None): Type if primitive
+        complex_parameter_type (RComplexType | None): Type if complex
+        data ([RData]): Meta-data of the parameter
+    """
+
     name: str
     communication_type: str
     exchange_pattern: str
@@ -32,54 +50,79 @@ class RParameter:
     complex_parameter_type: RComplexType | None
     data: list[RData] = field(init=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.data = []
 
 
 @dataclass
 class ROperation:
+    """Persistence representation of an :class:`Operation`.
+
+    Attributes:
+        name (str): Name of the operation
+        data ([RData]): Meta-data of the operation
+        parameters ([RParameter]): Parameters exchanged by the operation
+    """
+
     name: str
     data: list[RData] = field(init=False)
     parameters: list[RParameter] = field(init=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.data = []
         self.parameters = []
 
 
 @dataclass
 class RInterface:
+    """Persistence representation of an :class:`Interface`.
+
+    Attributes:
+        qualified_name (str): Fully qualified name of the interface
+        name (str): Name of the interface
+        data ([RData]): Meta-data of the interface
+        operations ([ROperation]): Operations offered by the interface
+    """
+
     qualified_name: str
     name: str
     data: list[RData] = field(init=False)
     operations: list[ROperation] = field(init=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.data = []
         self.operations = []
 
 
 @dataclass
 class RMicroservice:
+    """Persistence representation of a :class:`Microservice`.
+
+    Attributes:
+        qualified_name (str): Fully qualified name of the microservice
+        name (str): Name of the microservice
+        data ([RData]): Meta-data of the microservice
+        interfaces ([RInterface]): Interfaces offered by the microservice
+    """
+
     qualified_name: str
     name: str
     data: list[RData] = field(init=False)
     interfaces: list[RInterface] = field(init=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.data = []
         self.interfaces = []
 
 
 def transform_microservice_for_database(microservice: Microservice) -> RMicroservice:
-    """Transform a :class: `Context` into a :class: `RContext`.
+    """Transform a :class:`Microservice` into a :class:`RMicroservice`.
 
     Args:
-        microservice (Microservice): Context reconstructed from architecture information
+        microservice (Microservice): Reconstructed microservice information
 
     Returns:
-        r_microservice (RMicroservice): Representation of a reconstructed microservice for
-            persistence purpose
+        RMicroservice: Representation of the microservice for persistence
     """
     r_microservice = RMicroservice(microservice.qualified_name, microservice.name)
 

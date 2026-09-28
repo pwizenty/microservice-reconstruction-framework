@@ -1,8 +1,7 @@
-"""Module for saving reconstructed information to a MongoDB based on specific
-information.
-"""
+"""Persistence of reconstructed architecture information in MongoDB."""
 
 from dataclasses import asdict
+from typing import Any
 
 import yaml
 from pymongo import MongoClient
@@ -37,9 +36,9 @@ def save_microservices(microservices: list[Microservice]):
     """Method for saving the reconstructed microservice information to a database.
 
     Args:
-        microservices ([:class:`Microservice`]): List of reconstructed microservice information.
+        microservices ([:class:`Microservice`]): List of reconstructed
+            microservice information.
     """
-    print("Microservice")
     database = __setup_database()
     collection_microservices = database["microservice"]
     r_microservices: list[RMicroservice] = []
@@ -60,5 +59,5 @@ def __setup_database():
     db_port = db_config["port"]
     database_name = db_config["database_name"]
     mongo_uri = f"mongodb://{db_host}:{db_port}/"
-    client = MongoClient(mongo_uri)
+    client: MongoClient[dict[str, Any]] = MongoClient(mongo_uri)
     return client[database_name]

@@ -1,7 +1,7 @@
-"""Module of the Java plugin for reconstructing domain data information based of
-Java source code artifacts. This plugin analyses annotations form the Spring
-framework, e.g., @Entity or @SpringBootApplication to identify relevant
-information.
+"""Java plugin reconstructing domain data information.
+
+Analyses Java source code artifacts for annotations of the Spring framework,
+e.g., @Entity or @SpringBootApplication, to identify relevant information.
 """
 
 from javalang.tree import FieldDeclaration, TypeArgument
@@ -47,9 +47,7 @@ from mrf.utilities.sping import (
 
 
 class JavaPlugin(Plugin):
-    """Main class of the Java plugin to reconstruct relevant information from the
-    source code.
-    """
+    """Java plugin reconstructing domain data from source code."""
 
     def __init__(self):
         self.java_classes: list[JavaClassArtifact] = []
@@ -88,6 +86,15 @@ class JavaPlugin(Plugin):
     def reconstruct_dependencies(
         self, source_files: list[SourceFile], complex_types: list[ComplexType]
     ) -> list[Context]:
+        """Reconstruct the contexts the given complex types depend on.
+
+        Args:
+            source_files ([SourceFile]): Source files of the analysed system
+            complex_types ([ComplexType]): Complex types to resolve
+
+        Returns:
+            [Context]: Reconstructed domain data information
+        """
         self.java_classes.extend(load_classes(source_files, self.file_types()))
         for clazz in self.java_classes:
             context = self.__reconstruct_context(clazz)
@@ -134,7 +141,6 @@ class JavaPlugin(Plugin):
                 self.__handle_unknown_context(),
             )
             context.data_structures.append(structure)
-            print()
 
     def __reconstruct_data_structure(
         self, java_class: JavaClassArtifact
@@ -185,7 +191,7 @@ class JavaPlugin(Plugin):
                 if complex_type.class_type is ClassType.COLLECTION:
                     list_type_reference = f.type
                     list_type = self.__find_type_argument(list_type_reference)
-                    collection_type = None
+                    collection_type: PrimitiveType | ComplexType
                     collection_type_name = list_type.name
                     if collection_type_name.lower() in PRIMITIVE_JAVA_TYPES:
                         collection_type = PrimitiveType(collection_type_name)
@@ -220,13 +226,12 @@ class JavaPlugin(Plugin):
         return None
 
     def __find_context_name(self, qualified_name: str) -> str:
-        match_parts = []
+        match_parts: list[str] = []
         for context in self.contexts:
             parts = match_context(context.qualified_name, qualified_name)
             if len(match_parts) <= len(parts):
                 match_parts = parts
                 match_parts.append(context.name)
-                print()
         if len(match_parts) != 0:
             context_name = ".".join(match_parts)
             return context_name
@@ -350,20 +355,16 @@ class JavaPlugin(Plugin):
         else:
             return context
 
-    """
-    Adjust qualified name to match the context name. 
-    This is necessary to deal with sub-packages in Java, e.g., 
-
-    Context name reconstructed from the Java class with the @SpringBootApplication annotation.
-    'de.dmsa.parkandcharge.station'
-
-    Qualified name from reconstructed data structures with the @Entiy annotation.
-    'de.dmsa.parkandcharge.station.domain.processedevent'
-
-    Remove the *.domain. part from the qualified name. 
-    """
-
     def __adjust_qualified_names(self):
+        """Adjust qualified names of data structures to match their context name.
+
+        This is necessary to deal with sub-packages in Java. The context name is
+        reconstructed from the Java class carrying the @SpringBootApplication
+        annotation, e.g. ``de.dmsa.parkandcharge.station``, while the qualified
+        name of a data structure carrying the @Entity annotation is, e.g.,
+        ``de.dmsa.parkandcharge.station.domain.processedevent``. The ``.domain.``
+        part is removed from the qualified name.
+        """
         for context in self.contexts:
             for data_structure in context.data_structures:
                 data_structure.qualified_name = adjust_qualified_name(

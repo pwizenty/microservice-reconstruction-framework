@@ -1,6 +1,9 @@
-"""Module for transforming the reconstructed architecture information from an
-intermediate data format, suited for the reconstruction process with additional,
-information, e.g., file paths, into a suitable format for persistence.
+"""Persistence format for reconstructed domain data.
+
+Transforms the reconstructed architecture information from the intermediate
+data format, which carries additional information needed during the
+reconstruction process such as file paths, into a format suited for
+persistence.
 """
 
 from dataclasses import dataclass, field
@@ -29,7 +32,7 @@ class RClassType(Enum):
 
 @dataclass
 class RPrimitiveType:
-    """Name of the reconstructed primitive type, e.g., int"""
+    """Reconstructed primitive type, e.g., ``int``."""
 
     name: str
 
@@ -52,8 +55,10 @@ class RComplexType:
 
 @dataclass
 class RField:
-    """Field of a data structure. Note that the field should only have a complex
-    or primitive field type.
+    """Field of a data structure.
+
+    Note that the field should only have either a complex or a primitive field
+    type.
 
     Attributes:
         name (str): Name of the complex field type
@@ -116,7 +121,7 @@ class RCollection:
 
 @dataclass
 class REnumeration:
-    """Class for a reconstructed enumeration with a specific name
+    """Reconstructed enumeration with a specific name.
 
     Attributes:
         name (str): Name of the enumeration

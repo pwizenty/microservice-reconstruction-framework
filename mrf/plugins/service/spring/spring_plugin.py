@@ -1,5 +1,7 @@
-"""Module with class and methods to reconstruction microservices from Java based
-source code artifacts.
+"""Spring plugin reconstructing microservices and their REST interfaces.
+
+Analyses Java source code artifacts for annotations of the Spring framework,
+e.g., @SpringBootApplication or @RestController.
 """
 
 from copy import deepcopy
@@ -52,14 +54,19 @@ from mrf.utilities.sping import (
 
 @dataclass
 class SpringReconstructionResult:
+    """Result of a run of the :class:`SpringPlugin`.
+
+    Attributes:
+        microservices ([Microservice]): Reconstructed microservices
+        complex_types ([ComplexType]): Complex types used by their operations
+    """
+
     microservices: list[Microservice]
     complex_types: list[ComplexType]
 
 
 class SpringPlugin(Plugin):
-    """Class Plugin for recovering microservices from source code written in Java using
-    the Spring framework.
-    """
+    """Plugin recovering microservices from Java source code using Spring."""
 
     def __init__(self):
         self.java_classes: list[JavaClassArtifact] = []
@@ -81,12 +88,12 @@ class SpringPlugin(Plugin):
         """Execute the reconstruction functionality of the Spring plugin.
 
         Args:
-            source_files ():
+            source_files ([SourceFile]): Source files of the analysed system
 
         Returns:
-
+            SpringReconstructionResult: Reconstructed microservices and the
+            complex types used by their operations
         """
-        print("Test Spring Plugin")
         self.java_classes.extend(load_classes(source_files, self.file_types()))
         # Reconstruct microservices
         for clazz in self.java_classes:
@@ -122,9 +129,7 @@ class SpringPlugin(Plugin):
             return microservice
         return None
 
-    def __reconstruct_interface(
-        self, java_class: JavaClassArtifact
-    ) -> Interface | None:
+    def __reconstruct_interface(self, java_class: JavaClassArtifact) -> None:
         clazz = get_class_from_tree(java_class.tree)
         if has_annotation(clazz, [REST_CONTROLLER]):
             name = get_class_name(clazz).removesuffix(CONTROLLER_CLASS)
@@ -155,7 +160,6 @@ class SpringPlugin(Plugin):
     def __reconstruct_operation(
         self, method: MethodDeclaration, unit: CompilationUnit
     ) -> Operation:
-        print("")
         name = method.name
         operation = Operation(name)
         annotations = method.annotations
@@ -255,7 +259,6 @@ class SpringPlugin(Plugin):
             class_type = ClassType.COLLECTION
             arguments = reference_type.arguments
             reference_type = arguments[0].type
-            print()
 
         name = reference_type.name
         import_type = resolve_complex_field(unit, name)

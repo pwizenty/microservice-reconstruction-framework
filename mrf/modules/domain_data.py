@@ -1,5 +1,7 @@
-"""Module with classes to reconstruct information about the software system's
-domain including concepts from Domain Driven Design.
+"""Architecture model of a software system's domain.
+
+Includes concepts from Domain Driven Design such as bounded contexts,
+entities and value objects.
 """
 
 from dataclasses import dataclass, field
@@ -41,13 +43,13 @@ class PrimitiveType:
 
 @dataclass
 class Field:
-    """Data field of complex"""
+    """Data field of a complex type."""
 
     name: str
     field_type: PrimitiveType | ComplexType
     data: list[Data] = field(init=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.data = []
 
 
@@ -61,7 +63,7 @@ class DataStructure:
     fields: list[Field] = field(init=False)
     data: list[Data] = field(init=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.data = []
         self.fields = []
 
@@ -82,14 +84,16 @@ class Collection:
     field_type: PrimitiveType | ComplexType
     data: list[Data] = field(init=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.data = []
 
 
 @dataclass
 class Context:
-    """Class for saving architecture information about the software systems domain.
-    Related to a Bounded Context from Domain Driven Design.
+    """Bounded context of the software system's domain.
+
+    Saves architecture information about the software system's domain and
+    relates to a Bounded Context from Domain Driven Design.
 
     Attributes:
          qualified_name (str): Qualified name of the context, e.g. de.fhdo.User
@@ -100,7 +104,7 @@ class Context:
          data ([:class:`Data`]): Meta-data assigned to the context
     """
 
-    def __init__(self, qualified_name, name, origin_file):
+    def __init__(self, qualified_name: str, name: str, origin_file: str | None) -> None:
         self.qualified_name = qualified_name
         self.name = name
         self.origin_file = origin_file

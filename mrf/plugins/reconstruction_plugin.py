@@ -1,5 +1,7 @@
-"""Module with abstract classes and enumeration for the handling and creation of
-excrete reconstruction plugins.
+"""Plugin API of the reconstruction framework.
+
+Provides the abstract base class and the enumeration used to handle and create
+concrete reconstruction plugins.
 """
 
 from abc import ABC, abstractmethod
@@ -27,9 +29,8 @@ class Plugin(ABC):
         """
 
     @abstractmethod
-    def execute_reconstruction(self, source_files) -> list[Any]:
-        """Abstract method for executing the reconstruction functionalities of the
-        plugin.
+    def execute_reconstruction(self, source_files) -> Any:
+        """Execute the reconstruction functionality of the plugin.
 
         Args:
             source_files (): a single source code artifact.
