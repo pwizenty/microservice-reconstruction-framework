@@ -18,6 +18,8 @@ classifiers = [
 # Runtime dependencies only. argparse, pathlib and dataclasses are stdlib and
 # must NOT be listed; pandas is currently unused and was dropped.
 # ljavalang (NOT javalang): fork with Java 9-22 support (records etc.), see ADR-0003.
+# Resolved from the project's own fork at a pinned commit, see [tool.uv.sources]
+# below and ADR-0006: the released 2.1.0 drops class-level annotations.
 dependencies = [
     "ljavalang>=2.1",
     "pymongo>=4.8",
@@ -58,6 +60,9 @@ docs = [
 
 [tool.uv]
 default-groups = ["dev"]
+
+[tool.uv.sources]
+ljavalang = { git = "https://github.com/pwizenty/Ljavalang.git", rev = "330d58bafbf294c24a1d6282c038830e2386f1b8" }
 
 [tool.hatch.build.targets.wheel]
 packages = ["mrf"]

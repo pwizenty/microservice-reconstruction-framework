@@ -1,9 +1,12 @@
-"""Tests for the recovery of class-level annotations.
+"""Contract tests for class-level annotation parsing.
 
-ljavalang 2.1.0 discards the annotations of the *first* top-level type of a
-compilation unit. ``parse_java_file`` restores them from the token stream; see
-ADR-0003. These tests pin that behaviour down, including the cases where
-recovery must deliberately produce nothing.
+Detecting annotations on the first top-level type is how both plugins find
+microservices, bounded contexts and entities. Released ljavalang 2.1.0 drops
+them, which made MRF reconstruct nothing; the pinned fork fixes it (ADR-0006).
+
+These tests are the contract MRF relies on from the parser. They fail if the
+pin is moved to a revision that regresses, so they guard the dependency rather
+than any MRF code.
 """
 
 import pytest
@@ -71,7 +74,7 @@ def annotations_of(source: str) -> list[str]:
         ),
     ],
 )
-def test_recovers_first_type_annotations(label, source, expected):
+def test_first_type_annotations_are_parsed(label, source, expected):
     assert annotations_of(source) == expected, label
 
 
@@ -82,7 +85,7 @@ def test_package_annotation_is_not_attributed_to_the_type():
     assert annotations_of(source) == []
 
 
-def test_further_top_level_types_are_left_to_the_parser():
+def test_further_top_level_types_keep_their_annotations():
     source = "package a;\n@A\nclass First {}\n@B\nclass Second {}\n"
     unit = parse_java_file(source)
 
@@ -90,7 +93,7 @@ def test_further_top_level_types_are_left_to_the_parser():
     assert [a.name for a in unit.types[1].annotations] == ["B"]
 
 
-def test_recovery_does_not_disturb_other_positions():
+def test_annotations_at_every_position_are_parsed():
     source = (
         "package a;\n"
         "@RestController\n"
@@ -108,18 +111,17 @@ def test_recovery_does_not_disturb_other_positions():
     assert [a.name for a in clazz.methods[0].annotations] == ["GetMapping"]
 
 
-def test_arguments_are_not_restored():
-    # Recovery rebuilds names only; MRF matches on names. Documented in
-    # __recover_leading_annotations.
+def test_annotation_arguments_are_parsed():
+    # MRF matches on names only, but the parser keeps the element, so an
+    # argument-aware heuristic stays possible.
     clazz = get_class_from_tree(
         parse_java_file('package a;\n@Table(name = "c")\npublic class C {}\n')
     )
 
     assert clazz.annotations[0].name == "Table"
-    assert clazz.annotations[0].element is None
+    assert clazz.annotations[0].element is not None
 
 
-def test_unparsable_source_still_raises():
-    # Recovery must not swallow a genuine syntax error.
+def test_unparsable_source_raises():
     with pytest.raises(JavaSyntaxError):
         parse_java_file("package a; this is not java")

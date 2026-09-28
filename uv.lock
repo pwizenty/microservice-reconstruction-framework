@@ -704,11 +704,7 @@ wheels = [
 [[package]]
 name = "ljavalang"
 version = "2.1.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/c4/45/9552688d52524c30cb0812d114736bde99392554ee24a6d21434010d0253/ljavalang-2.1.0.tar.gz", hash = "sha256:3c6fcbb210e10e0e07daed8e77262e3d74110064c4f9fcf0839b8a0ea9e158e8", size = 42261, upload-time = "2026-06-30T03:07:03.778Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/30/46/db79dda3658df7bf3fdcbea03a4a9f6d01754cdfa4f911fd60bbd5cb2957/ljavalang-2.1.0-py3-none-any.whl", hash = "sha256:05f2ed875f00d929116d54577a82f2843c4a18009a19439f942ea28ca9dd369d", size = 45199, upload-time = "2026-06-30T03:07:02.619Z" },
-]
+source = { git = "https://github.com/pwizenty/Ljavalang.git?rev=330d58bafbf294c24a1d6282c038830e2386f1b8#330d58bafbf294c24a1d6282c038830e2386f1b8" }
 
 [[package]]
 name = "markdown-it-py"
@@ -839,7 +835,7 @@ integration = [
 
 [package.metadata]
 requires-dist = [
-    { name = "ljavalang", specifier = ">=2.1" },
+    { name = "ljavalang", git = "https://github.com/pwizenty/Ljavalang.git?rev=330d58bafbf294c24a1d6282c038830e2386f1b8" },
     { name = "pymongo", specifier = ">=4.8" },
     { name = "pyyaml", specifier = ">=6.0" },
 ]

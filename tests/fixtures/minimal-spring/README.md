@@ -21,9 +21,9 @@ The package names are deliberately three levels deep
 `HIERARCHY_LEVEL` (3) matching parts and links the controller to the service.
 
 All three annotations sit on the **first top-level type** of their file, the
-position ljavalang 2.1.0 drops (ADR-0003). This fixture therefore also guards
-the recovery in `parse_java_file`: without it, `expected.json` collapses to two
-empty lists.
+position released ljavalang 2.1.0 drops (ADR-0003). This fixture therefore
+doubles as the contract test for the pinned parser (ADR-0006): against a
+revision without that fix, `expected.json` collapses to two empty lists.
 
 ## Notes on the expected output
 Two properties are worth knowing before treating a diff as a regression:

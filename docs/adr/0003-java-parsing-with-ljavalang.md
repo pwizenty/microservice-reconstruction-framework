@@ -100,8 +100,9 @@ TODO(author): acceptable risk of depending on a single-maintainer fork?
   if it is removed.
 - Negative: fork maintenance risk; `javalang.tree` types currently leak into
   both plugins (`spring_plugin.py`, `java_plugin.py`).
-- Follow-up: report the defect upstream to the ljavalang maintainer, and drop
-  the workaround once a fixed release exists.
+- Follow-up: report the defect upstream to the ljavalang maintainer.
+- Resolved by ADR-0006: MRF now consumes the fork at a pinned commit that fixes
+  the parser, and the `parse_java_file()` workaround has been removed.
 - Follow-up: the golden fixture covers `@SpringBootApplication`, `@Entity` and
   `@RestController`; a record-valued fixture is still missing.
 
