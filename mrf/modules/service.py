@@ -1,5 +1,4 @@
-"""
-Module with classes to reconstruct information about the software system's
+"""Module with classes to reconstruct information about the software system's
 microservices, API, and dependencies.
 """
 
@@ -7,7 +6,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from mrf.modules.domain_data import ComplexType, PrimitiveType
-
 from mrf.plugins.common.common_plugin import Data
 
 MICROSERVICE_PUBLIC = "public"
@@ -40,8 +38,8 @@ class Parameter:
 @dataclass
 class Operation:
     name: str
-    data: list[Data] = field(init = False)
-    parameters: list[Parameter] = field(init = False)
+    data: list[Data] = field(init=False)
+    parameters: list[Parameter] = field(init=False)
 
     def __post_init__(self):
         self.data = []
@@ -50,8 +48,7 @@ class Operation:
 
 @dataclass
 class Interface:
-    """
-    Class for storing architecture information about interfaces of
+    """Class for storing architecture information about interfaces of
     microservices, e.g., API endpoints and service dependencies.
     """
 
@@ -67,8 +64,7 @@ class Interface:
 
 @dataclass
 class Microservice:
-    """
-    Class for storeing architecture information about the software systems
+    """Class for storeing architecture information about the software systems
     microservices, e.g., API, dependencies and technologies.
     """
 

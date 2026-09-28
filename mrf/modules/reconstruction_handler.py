@@ -1,5 +1,4 @@
-"""
-Module for handling the reconstruction process including the management of
+"""Module for handling the reconstruction process including the management of
 source code files and reconstruction process.
 """
 
@@ -8,15 +7,12 @@ from mrf.modules.service import Microservice
 from mrf.plugins.data.java.java_plugin import JavaPlugin
 from mrf.plugins.reconstruction_plugin import PluginType
 from mrf.plugins.service.spring.spring_plugin import SpringPlugin
-from mrf.repositories.mongo_repository import save_contexts
+from mrf.repositories.mongo_repository import save_contexts, save_microservices
 from mrf.utilities.command_line import SourceFile
-from mrf.repositories.mongo_repository import save_microservices
 
 
 class ReconstructionHandler:
-    """
-    Class for handling the reconstruction process.
-    """
+    """Class for handling the reconstruction process."""
 
     _instance = None
     source_files: list[SourceFile] = []
@@ -27,14 +23,13 @@ class ReconstructionHandler:
     def __new__(cls, source_files, plugins):
         if cls._instance is None:
             print("Create Reconstruction Handler")
-            cls._instance = super(ReconstructionHandler, cls).__new__(cls)
+            cls._instance = super().__new__(cls)
         cls.source_files = source_files
         cls.plugins = plugins
         return cls._instance
 
     def reconstruct_start(self):
-        """
-        Method that start the phases of the reconstruction process in the order,
+        """Method that start the phases of the reconstruction process in the order,
         domain data, microservices and operation.
         """
         self.__reconstruct_data(self.source_files)
@@ -49,21 +44,23 @@ class ReconstructionHandler:
     def __reconstruct_service(self, source_files: list[SourceFile]):
         if PluginType.SPRING in self.plugins:
             results = SpringPlugin().execute_reconstruction(source_files)
-            contexts = JavaPlugin().reconstruct_dependencies(source_files, results.complex_types)
-            self.reconstructed_service.extend(
-                results.microservices
+            contexts = JavaPlugin().reconstruct_dependencies(
+                source_files, results.complex_types
             )
-            self.reconstructed_data = self.__merge_contexts(self.reconstructed_data, contexts)
+            self.reconstructed_service.extend(results.microservices)
+            self.reconstructed_data = self.__merge_contexts(
+                self.reconstructed_data, contexts
+            )
             print()
 
     def reconstruct_save(self):
-        """
-        Save the reconstructed architecture information to the database.
-        """
+        """Save the reconstructed architecture information to the database."""
         save_contexts(self.reconstructed_data)
         save_microservices(self.reconstructed_service)
 
-    def __merge_contexts(self, base: list[Context], other: list[Context]) -> list[Context]:
+    def __merge_contexts(
+        self, base: list[Context], other: list[Context]
+    ) -> list[Context]:
         for ctx in other:
             existing = next((c for c in base if c.name == ctx.name), None)
             if existing is None:

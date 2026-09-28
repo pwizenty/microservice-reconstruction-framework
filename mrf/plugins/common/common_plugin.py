@@ -1,6 +1,4 @@
-"""
-Module with common classes shared between various plugins.
-"""
+"""Module with common classes shared between various plugins."""
 
 from dataclasses import dataclass
 
@@ -9,8 +7,7 @@ from javalang.tree import CompilationUnit
 
 @dataclass
 class Data:
-    """
-    Data structure class for adding meta-data to reconstructed architecture
+    """Data structure class for adding meta-data to reconstructed architecture
     information, e.g., Domain Driven Design features to data fields.
 
     Attributes:
@@ -23,8 +20,7 @@ class Data:
 
 @dataclass
 class JavaClassArtifact:
-    """
-    Representation of a Java class source code artifact with the path to the
+    """Representation of a Java class source code artifact with the path to the
     file and a corresponding parsed version as a CompilationUnit.
 
     Attributes:

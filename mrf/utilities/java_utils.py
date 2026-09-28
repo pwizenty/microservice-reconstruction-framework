@@ -1,36 +1,29 @@
-"""
-Utility module for handling Java-based source code artifacts.
-"""
+"""Utility module for handling Java-based source code artifacts."""
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import List
 
 import javalang as java_lang
 from javalang.tree import (
-    AnnotationDeclaration,
-    CompilationUnit,
-    ClassDeclaration,
-    Declaration,
-    FieldDeclaration,
     Annotation,
-    InterfaceDeclaration,
+    AnnotationDeclaration,
+    ClassDeclaration,
+    CompilationUnit,
+    Declaration,
     EnumDeclaration,
-    TypeDeclaration, RecordDeclaration,
+    FieldDeclaration,
+    InterfaceDeclaration,
+    RecordDeclaration,
+    TypeDeclaration,
 )
 
-from mrf.utilities.sping import APPLICATION_CLASS
-from mrf.utilities.command_line import SourceFile
 from mrf.plugins.common.common_plugin import JavaClassArtifact
+from mrf.utilities.command_line import SourceFile
+from mrf.utilities.sping import APPLICATION_CLASS
 
+TECHNOLOGY_SPRING_TYPES = ["responseentity"]
 
-TECHNOLOGY_SPRING_TYPES = [
-    "responseentity"
-]
-
-COLLECTION_TYPES = [
-    "list"
-]
+COLLECTION_TYPES = ["list"]
 
 PRIMITIVE_JAVA_TYPES = [
     "byte",
@@ -45,7 +38,7 @@ PRIMITIVE_JAVA_TYPES = [
     "string",
     "date",
     "instant",
-    "bigdecimal"
+    "bigdecimal",
 ]
 # Level for matching qualified names, e.g.,
 # 'com.lakesidemutual.customercore.domain.customer' to
@@ -59,8 +52,7 @@ UNKNOWN_IMPORT_NAME = "UnknownImportName"
 
 
 class DependencyType(Enum):
-    """
-    Enumeration for handling different types of dependencies, e.g.,
+    """Enumeration for handling different types of dependencies, e.g.,
     dependencies that are in the same Java package, dependencies that are in the
     same project or external dependencies that are imported via a dependency
     management tool like Maven.
@@ -74,18 +66,14 @@ class DependencyType(Enum):
 
 @dataclass
 class ImportType:
-    """
-    Class for handling different types of imports.
-    """
+    """Class for handling different types of imports."""
 
     qualified_import_name: str
     dependency_type: DependencyType
 
 
 class NoJavaDeclrationException(Exception):
-    """
-    The Java class class has no valid Declaration
-    """
+    """The Java class class has no valid Declaration"""
 
     def __init__(self, unit: CompilationUnit, message: str):
         self.unit = unit
@@ -97,9 +85,7 @@ class NoJavaDeclrationException(Exception):
 
 
 class NoProjectDependencyFoundException(Exception):
-    """
-    Exepction when the project dependency could not be resolved.
-    """
+    """Exepction when the project dependency could not be resolved."""
 
     def __init__(self, message: str):
         self.message = message
@@ -110,8 +96,7 @@ class NoProjectDependencyFoundException(Exception):
 
 
 def parse_java_file(file: str) -> CompilationUnit:
-    """
-    Parse a given Java file into a ComplicationUnit
+    """Parse a given Java file into a ComplicationUnit
 
     Args:
         file (): Java file as a String
@@ -124,8 +109,7 @@ def parse_java_file(file: str) -> CompilationUnit:
 
 
 def get_class_from_tree(unit: CompilationUnit) -> TypeDeclaration:
-    """
-    Transform a Java ComplicationUnit into a Java class if it is an instance of
+    """Transform a Java ComplicationUnit into a Java class if it is an instance of
     a Enumeration, Interface, Package or Class.
 
     Args:
@@ -136,7 +120,7 @@ def get_class_from_tree(unit: CompilationUnit) -> TypeDeclaration:
     """
     classes = [
         c
-        for c in getattr(unit, "types")
+        for c in unit.types
         if isinstance(
             c,
             ClassDeclaration
@@ -154,8 +138,7 @@ def get_class_from_tree(unit: CompilationUnit) -> TypeDeclaration:
 
 
 def has_annotation(dec: Declaration, names: list[str]) -> bool:
-    """
-    Method that check if a type has specific annotations.
+    """Method that check if a type has specific annotations.
 
     Args:
         clazz (ClassDeclaration): Parsed Java class artifact
@@ -165,7 +148,7 @@ def has_annotation(dec: Declaration, names: list[str]) -> bool:
         True / False based of the class has the annotation
     """
     if hasattr(dec, "annotations"):
-        annotation = find_annotation(getattr(dec, "annotations"), names)
+        annotation = find_annotation(dec.annotations, names)
         return bool(annotation)
     return False
 
@@ -173,8 +156,7 @@ def has_annotation(dec: Declaration, names: list[str]) -> bool:
 def find_annotation(
     annotations: list[Annotation], annotation_names
 ) -> Annotation | None:
-    """
-    Method that checks if an annotation is in a list of annotations.
+    """Method that checks if an annotation is in a list of annotations.
 
     Args:
         annotations (): List of possible annotations.
@@ -187,7 +169,7 @@ def find_annotation(
         (
             an
             for an in annotations
-            if hasattr(an, "name") and getattr(an, "name") in annotation_names
+            if hasattr(an, "name") and an.name in annotation_names
         ),
         None,
     )
@@ -195,8 +177,7 @@ def find_annotation(
 
 
 def get_class_name(clazz: TypeDeclaration) -> str:
-    """
-    Get the name of a Java class
+    """Get the name of a Java class
 
     Args:
         clazz (ClassDeclaration): Java class
@@ -205,14 +186,13 @@ def get_class_name(clazz: TypeDeclaration) -> str:
         name (str): Name of the Java class
     """
     if hasattr(clazz, "name"):
-        return getattr(clazz, "name")
+        return clazz.name
     else:
         return UNKNOWN_CLASS_NAME
 
 
 def get_qualified_class_name(tree: CompilationUnit) -> str:
-    """
-    Get the qualified name of a class from a ComplicationUnit
+    """Get the qualified name of a class from a ComplicationUnit
 
     Args:
         tree (): ComplicationUnit of a Java class artifact
@@ -228,7 +208,7 @@ def get_qualified_class_name(tree: CompilationUnit) -> str:
     class_name = get_class_name(clazz)
 
     if hasattr(tree, "package"):
-        package = getattr(tree, "package")
+        package = tree.package
         package_name = package.name
         return package_name + "." + class_name
     # Return simple class name, when package is not set
@@ -236,8 +216,7 @@ def get_qualified_class_name(tree: CompilationUnit) -> str:
 
 
 def get_field_name(field: FieldDeclaration) -> str:
-    """
-    Get the name of a field from a FieldDeclaration.
+    """Get the name of a field from a FieldDeclaration.
 
     Args:
         field (FieldDeclaration): Field of a Java class
@@ -246,14 +225,13 @@ def get_field_name(field: FieldDeclaration) -> str:
         field_name (str): Name of the field
     """
     if hasattr(field, "declarators"):
-        declarators = getattr(field, "declarators")
+        declarators = field.declarators
         return declarators[0].name
     return UNKNOWN_FIELD_NAME
 
 
 def adjust_name(name: str) -> str:
-    """
-    Remove specific naming parts from a string, e.g., remove "Application" from
+    """Remove specific naming parts from a string, e.g., remove "Application" from
     the class name "CustomerCoreApplication".
 
     This is dane because the "Application" suffix does not add any value about
@@ -272,8 +250,7 @@ def adjust_name(name: str) -> str:
 def match_context(
     qualified_name_context: str, qualified_name_structure: str
 ) -> list[str]:
-    """
-    Compare of names of a reconstructed context.
+    """Compare of names of a reconstructed context.
 
     Args:
         qualified_name_context (str): Context name
@@ -286,8 +263,7 @@ def match_context(
 
 
 def resolve_complex_field(tree: CompilationUnit, field_type: str) -> ImportType:
-    """
-    Resolve the qualified name of a complex type based on the type of dependency
+    """Resolve the qualified name of a complex type based on the type of dependency
 
     Args:
         tree (CompilationUnit): Unit of the class that the type is in
@@ -300,8 +276,8 @@ def resolve_complex_field(tree: CompilationUnit, field_type: str) -> ImportType:
         basic_name = next(
             (
                 im
-                for im in getattr(tree, "imports")
-                if hasattr(im, "path") and getattr(im, "path").endswith(field_type)
+                for im in tree.imports
+                if hasattr(im, "path") and im.path.endswith(field_type)
             ),
             None,
         )
@@ -328,8 +304,7 @@ def resolve_complex_field(tree: CompilationUnit, field_type: str) -> ImportType:
 def load_classes(
     source_files: list[SourceFile], java_types: list[str]
 ) -> list[JavaClassArtifact]:
-    """
-    Load java class file for plugin.
+    """Load java class file for plugin.
 
     Args:
         source_files (): List of Java source files
@@ -338,7 +313,7 @@ def load_classes(
     Returns:
         java_classes (JavaClassArtifact): List of Java class artifacts
     """
-    java_classes: List[JavaClassArtifact] = []
+    java_classes: list[JavaClassArtifact] = []
     for s in source_files:
         if s.suffix in java_types:
             tree = parse_java_file(s.file)
@@ -360,7 +335,7 @@ def __build_qualified_name(tree: CompilationUnit, field_type: str) -> str:
 
 def __get_package_name(tree: CompilationUnit) -> str:
     if hasattr(tree, "package"):
-        package = getattr(tree, "package")
+        package = tree.package
         return package.name
     return UNKNOWN_PACKAGE_NAME
 
@@ -385,7 +360,10 @@ def __build_matches(string1: str, string2: str, split_char: str) -> list[str]:
             break
     return matches
 
-def adjust_qualified_name(context_qualified_name: str, data_structure_qualified_name: str) -> str:
+
+def adjust_qualified_name(
+    context_qualified_name: str, data_structure_qualified_name: str
+) -> str:
     name = data_structure_qualified_name.rsplit(".", 1)[-1]
-    adjusted_name= f"{context_qualified_name}.{name}"
+    adjusted_name = f"{context_qualified_name}.{name}"
     return adjusted_name

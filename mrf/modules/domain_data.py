@@ -1,11 +1,9 @@
-"""
-Module with classes to reconstruct information about the software system's
+"""Module with classes to reconstruct information about the software system's
 domain including concepts from Domain Driven Design.
 """
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List
 
 from mrf.plugins.common.common_plugin import Data
 
@@ -17,9 +15,7 @@ UNKNOWN_TYPE = "UnknownType"
 
 
 class ClassType(Enum):
-    """
-    Enumeration with class types for :class:`ComplexType`.
-    """
+    """Enumeration with class types for :class:`ComplexType`."""
 
     COLLECTION = "COLLECTION"
     ENUM = "ENUM"
@@ -29,9 +25,7 @@ class ClassType(Enum):
 
 @dataclass
 class ComplexType:
-    """
-    Complex data type of :class:`DataStructure`.
-    """
+    """Complex data type of :class:`DataStructure`."""
 
     name: str
     qualified_name: str
@@ -40,18 +34,14 @@ class ComplexType:
 
 @dataclass
 class PrimitiveType:
-    """
-    Simple / primitive data type of :class:`DataStructure`.
-    """
+    """Simple / primitive data type of :class:`DataStructure`."""
 
     name: str
 
 
 @dataclass
 class Field:
-    """
-    Data field of complex
-    """
+    """Data field of complex"""
 
     name: str
     field_type: PrimitiveType | ComplexType
@@ -63,9 +53,7 @@ class Field:
 
 @dataclass
 class DataStructure:
-    """
-    Data structure for domain concepts, e.g., entities or aggregates.
-    """
+    """Data structure for domain concepts, e.g., entities or aggregates."""
 
     qualified_name: str
     name: str
@@ -80,17 +68,14 @@ class DataStructure:
 
 @dataclass
 class Enumeration:
-    """
-    Enumeration type for domain information.
-    """
+    """Enumeration type for domain information."""
 
     name: str
 
+
 @dataclass
 class Collection:
-    """
-    Collection type for domain information.
-    """
+    """Collection type for domain information."""
 
     qualified_name: str
     name: str
@@ -103,8 +88,7 @@ class Collection:
 
 @dataclass
 class Context:
-    """
-    Class for saving architecture information about the software systems domain.
+    """Class for saving architecture information about the software systems domain.
     Related to a Bounded Context from Domain Driven Design.
 
     Attributes:
@@ -120,7 +104,7 @@ class Context:
         self.qualified_name = qualified_name
         self.name = name
         self.origin_file = origin_file
-        self.data_structures: List[DataStructure] = []
-        self.enums: List[Enumeration] = []
-        self.collections: List[Collection] = []
-        self.data: List[Data] = []
+        self.data_structures: list[DataStructure] = []
+        self.enums: list[Enumeration] = []
+        self.collections: list[Collection] = []
+        self.data: list[Data] = []

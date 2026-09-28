@@ -1,5 +1,4 @@
-"""
-Module for saving reconstructed information to a MongoDB based on specific
+"""Module for saving reconstructed information to a MongoDB based on specific
 information.
 """
 
@@ -8,8 +7,8 @@ from dataclasses import asdict
 import yaml
 from pymongo import MongoClient
 
-from mrf.modules.service import Microservice
 from mrf.modules.domain_data import Context
+from mrf.modules.service import Microservice
 from mrf.repositories.domain.data import RContext, transform_context_for_database
 from mrf.repositories.service.service import (
     RMicroservice,
@@ -18,8 +17,7 @@ from mrf.repositories.service.service import (
 
 
 def save_contexts(contexts: list[Context]):
-    """
-    Method for saving the reconstructed domain data information to a database.
+    """Method for saving the reconstructed domain data information to a database.
 
     Args:
         contexts ([:class:`Context`]): List of reconstructed domain information.
@@ -36,8 +34,7 @@ def save_contexts(contexts: list[Context]):
 
 
 def save_microservices(microservices: list[Microservice]):
-    """
-    Method for saving the reconstructed microservice information to a database.
+    """Method for saving the reconstructed microservice information to a database.
 
     Args:
         microservices ([:class:`Microservice`]): List of reconstructed microservice information.
@@ -56,7 +53,7 @@ def save_microservices(microservices: list[Microservice]):
 
 
 def __setup_database():
-    with open("mrf/config.yaml", "r", encoding="utf-8") as config_file:
+    with open("mrf/config.yaml", encoding="utf-8") as config_file:
         config = yaml.safe_load(config_file)
     db_config = config["database"]
     db_host = db_config["host"]

@@ -1,5 +1,4 @@
-"""
-Module for transforming the reconstructed architecture information from an
+"""Module for transforming the reconstructed architecture information from an
 intermediate service format, suited for the reconstruction process with additional,
 information, e.g., file paths, into a suitable format for persistence.
 """
@@ -7,10 +6,10 @@ information, e.g., file paths, into a suitable format for persistence.
 from dataclasses import dataclass, field
 from enum import Enum
 
-from mrf.modules.domain_data import ComplexType, PrimitiveType
-from mrf.modules.service import Microservice, Interface, Operation, Parameter
+from mrf.modules.domain_data import ComplexType
+from mrf.modules.service import Interface, Microservice, Operation, Parameter
 from mrf.repositories.common import RData, to_rdata
-from mrf.repositories.domain.data import RPrimitiveType, RComplexType
+from mrf.repositories.domain.data import RComplexType, RPrimitiveType
 
 
 class RExchangePattern(Enum):
@@ -73,8 +72,8 @@ class RMicroservice:
 
 
 def transform_microservice_for_database(microservice: Microservice) -> RMicroservice:
-    """
-    Transform a :class: `Context` into a :class: `RContext`.
+    """Transform a :class: `Context` into a :class: `RContext`.
+
     Args:
         microservice (Microservice): Context reconstructed from architecture information
 

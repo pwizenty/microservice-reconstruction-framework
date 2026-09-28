@@ -1,5 +1,4 @@
-"""
-Module for transforming the reconstructed architecture information from an
+"""Module for transforming the reconstructed architecture information from an
 intermediate data format, suited for the reconstruction process with additional,
 information, e.g., file paths, into a suitable format for persistence.
 """
@@ -7,22 +6,20 @@ information, e.g., file paths, into a suitable format for persistence.
 from dataclasses import dataclass, field
 from enum import Enum
 
-from mrf.plugins.common.common_plugin import Data
 from mrf.modules.domain_data import (
+    ClassType,
+    Collection,
+    ComplexType,
     Context,
     DataStructure,
     Field,
     PrimitiveType,
-    ComplexType,
-    ClassType, Collection,
 )
 from mrf.repositories.common import RData, to_rdata
 
 
 class RClassType(Enum):
-    """
-    Class types of reconstructed elements.
-    """
+    """Class types of reconstructed elements."""
 
     COLLECTION = "COLLECTION"
     ENUM = "ENUM"
@@ -32,17 +29,14 @@ class RClassType(Enum):
 
 @dataclass
 class RPrimitiveType:
-    """
-    Name of the reconstructed primitive type, e.g., int
-    """
+    """Name of the reconstructed primitive type, e.g., int"""
 
     name: str
 
 
 @dataclass
 class RComplexType:
-    """
-    Name in information of the reconstructed complex type.
+    """Name in information of the reconstructed complex type.
 
     Attributes:
         name (str): simple name of the complex type, e.g., User
@@ -58,8 +52,7 @@ class RComplexType:
 
 @dataclass
 class RField:
-    """
-    Field of a data structure. Note that the field should only have a complex
+    """Field of a data structure. Note that the field should only have a complex
     or primitive field type.
 
     Attributes:
@@ -80,8 +73,7 @@ class RField:
 
 @dataclass
 class RDataStructure:
-    """
-    Class for reconstructed data structures.
+    """Class for reconstructed data structures.
 
     Attributes:
         name (str): Name of the data structure, e.g., User
@@ -99,10 +91,10 @@ class RDataStructure:
         self.data = []
         self.fields = []
 
+
 @dataclass
 class RCollection:
-    """
-    Class for reconstructed collections.
+    """Class for reconstructed collections.
 
     Attributes:
         name (str): Name of the data structure, e.g., User
@@ -121,10 +113,10 @@ class RCollection:
         self.data = []
         self.fields = []
 
+
 @dataclass
 class REnumeration:
-    """
-    Class for a reconstructed enumeration with a specific name
+    """Class for a reconstructed enumeration with a specific name
 
     Attributes:
         name (str): Name of the enumeration
@@ -133,11 +125,9 @@ class REnumeration:
     name: str
 
 
-
 @dataclass
 class RContext:
-    """
-    Class for information about the reconstructed bounded contexts.
+    """Class for information about the reconstructed bounded contexts.
 
     Attributes:
         name (str): Name of the bounded context, e.g., CustomerCore
@@ -162,8 +152,8 @@ class RContext:
 
 
 def transform_context_for_database(context: Context) -> RContext:
-    """
-    Transform a :class: `Context` into a :class: `RContext`.
+    """Transform a :class: `Context` into a :class: `RContext`.
+
     Args:
         context (Context): Context reconstructed from architecture information
 
@@ -199,6 +189,7 @@ def __to_rdata_structure(data_structure: DataStructure):
 
     return r_data_structure
 
+
 def __to_rcollection(collection: Collection) -> RCollection:
     if isinstance(collection.field_type, PrimitiveType):
         r_type = __to_rprimitive_type(collection.field_type)
@@ -206,7 +197,6 @@ def __to_rcollection(collection: Collection) -> RCollection:
     else:
         r_type = __to_rcomplex_type(collection.field_type)
         return RCollection(collection.name, collection.qualified_name, None, r_type)
-
 
 
 def __to_rfield(field_: Field):

@@ -1,6 +1,4 @@
-"""
-Module with a summary of static variables.
-"""
+"""Module with a summary of static variables."""
 
 # Spring annotations
 CONTEXT_ANNOTATION = "SpringBootApplication"

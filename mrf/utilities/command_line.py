@@ -1,5 +1,4 @@
-"""
-Command line support for the Microservice Reconstruction Framework to handle
+"""Command line support for the Microservice Reconstruction Framework to handle
 its configuration and execution.
 """
 
@@ -12,8 +11,8 @@ from mrf.plugins.reconstruction_plugin import PluginType
 
 @dataclass
 class SourceFile:
-    """
-    Data class for structuring information about source code artifacts.
+    """Data class for structuring information about source code artifacts.
+
     Args:
         path (str): Relative path to the file
         file (File): Source code artifact of the software system
@@ -27,9 +26,9 @@ class SourceFile:
 
 
 def handle_parameters():
-    """
-    Handle command line parameter to configure the execution of the Microservice
+    """Handle command line parameter to configure the execution of the Microservice
     reconstruction framework.
+
     Returns:
         plugin: Selected plugins for the reconstruction process
         target: File path to the folder with the source code of the system
@@ -54,19 +53,18 @@ def handle_parameters():
 
 
 def load_file(file_path: str) -> str | None:
-    """
-    [TODO:description]
+    """[TODO:description]
 
     :param file_path: [TODO:description]
     :return: [TODO:description]
     """
     code = None
     try:
-        with open(file_path, "r", encoding="utf-8") as file:
+        with open(file_path, encoding="utf-8") as file:
             code = file.read()
     except FileNotFoundError:
         print(f"The file {file_path} was not found.")
-    except IOError:
+    except OSError:
         print(f"An error occurred while reading the file {file_path}.")
     except UnicodeDecodeError:
         print(f"An UnicodeError occurred while reading the file {file_path}.")
@@ -80,8 +78,8 @@ def load_files(file_path) -> list[Path]:
 
 
 def files_to_source_files(files) -> list[SourceFile]:
-    """
-    Transforms a list of files to a list of :class: `SourceFile`.
+    """Transforms a list of files to a list of :class: `SourceFile`.
+
     Args:
         files (File):
 
@@ -98,8 +96,7 @@ def files_to_source_files(files) -> list[SourceFile]:
 
 
 def args_to_plugins(args) -> list[PluginType]:
-    """
-    Select the plugins from the command line arguments and transform them into
+    """Select the plugins from the command line arguments and transform them into
     a list pf :class: `PluginType`s.
 
     Args:
