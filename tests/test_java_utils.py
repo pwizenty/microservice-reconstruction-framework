@@ -57,15 +57,6 @@ def test_has_annotation_matches_field_annotations():
     assert has_annotation(clazz.fields[0], ["Column"]) is False
 
 
-@pytest.mark.xfail(
-    reason=(
-        "ljavalang 2.1.0 drops class-level annotations written before the "
-        "modifiers, i.e. the conventional '@Entity public class C' form. "
-        "The upstream javalang attaches them. This breaks annotation-based "
-        "detection in both plugins; see ADR-0003."
-    ),
-    strict=True,
-)
 def test_has_annotation_matches_class_annotations():
     clazz = get_class_from_tree(parse_java_file(ENTITY_SOURCE))
 

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 import javalang as java_lang
+from javalang.tokenizer import Identifier, JavaToken
 from javalang.tree import (
     Annotation,
     AnnotationDeclaration,
@@ -44,6 +45,10 @@ PRIMITIVE_JAVA_TYPES = [
 # 'com.lakesidemutual.customercore.domain.customer' to
 # 'com.lakesidemutual.customercore.domain'
 HIERARCHY_LEVEL = 3
+
+# Keywords that open a top-level type declaration. "record" is a contextual
+# keyword and may be tokenized as an identifier, so it is matched by value.
+TYPE_DECLARATION_KEYWORDS = frozenset({"class", "interface", "enum", "record"})
 
 UNKNOWN_CLASS_NAME = "UnknownClassName"
 UNKNOWN_PACKAGE_NAME = "UnknownPackageName"
@@ -106,7 +111,134 @@ def parse_java_file(file: str) -> CompilationUnit:
         tree (CompilationUnit): Parsed Java file
     """
     tree = java_lang.parse.parse(file)
+    __recover_leading_annotations(tree, file)
     return tree
+
+
+def __recover_leading_annotations(unit: CompilationUnit, source: str) -> None:
+    """Re-attach the annotations of the first top-level type declaration.
+
+    ljavalang 2.1.0 discards the annotations written before the modifiers of
+    the **first** top-level type of a compilation unit, the conventional
+    ``@Entity public class C`` form. Every other position is unaffected:
+    fields, methods, nested types and any further top-level type keep theirs.
+    Since a Java file conventionally holds one top-level type, this silently
+    strips the annotations of the very class both plugins key on. See ADR-0003.
+
+    The names are recovered from the token stream, which still contains them,
+    and the annotations are rebuilt with ``element=None``. Annotation arguments
+    are therefore not restored; MRF matches on names only.
+
+    The unit is modified in place. Recovery is skipped when the parser already
+    provided annotations, so a fixed ljavalang keeps precedence.
+
+    Args:
+        unit (CompilationUnit): Parsed compilation unit, modified in place
+        source (str): Source code the unit was parsed from
+    """
+    if not unit.types:
+        return
+    declaration = unit.types[0]
+    if getattr(declaration, "annotations", None):
+        return
+    names = __leading_annotation_names(source, declaration.name)
+    if names:
+        declaration.annotations = [Annotation(name=n, element=None) for n in names]
+
+
+def __leading_annotation_names(source: str, type_name: str) -> list[str]:
+    """Collect the annotation names preceding the first type declaration.
+
+    Args:
+        source (str): Source code of the compilation unit
+        type_name (str): Name of the first top-level type, used to verify that
+            the declaration found in the token stream is the expected one
+
+    Returns:
+        [str]: Annotation names in source order, empty if they cannot be
+        attributed to ``type_name`` with confidence
+    """
+    try:
+        tokens = list(java_lang.tokenizer.tokenize(source))
+    except Exception:
+        return []
+
+    names: list[str] = []
+    index = 0
+    while index < len(tokens):
+        value = tokens[index].value
+        if value == "@":
+            # "@interface" declares an annotation type; it is the declaration
+            # itself, not an annotation applied to one.
+            if __value_at(tokens, index + 1) == "interface":
+                return names if __value_at(tokens, index + 2) == type_name else []
+            name, index = __read_qualified_name(tokens, index + 1)
+            if name is None:
+                return []
+            index = __skip_balanced(tokens, index, "(", ")")
+            names.append(name)
+        elif value == ";":
+            # End of the package or an import declaration: anything collected
+            # so far annotates that, not the type.
+            names = []
+            index += 1
+        elif value in TYPE_DECLARATION_KEYWORDS:
+            return names if __value_at(tokens, index + 1) == type_name else []
+        else:
+            index += 1
+    return []
+
+
+def __value_at(tokens: list[JavaToken], index: int) -> str | None:
+    if 0 <= index < len(tokens):
+        return str(tokens[index].value)
+    return None
+
+
+def __read_qualified_name(
+    tokens: list[JavaToken], index: int
+) -> tuple[str | None, int]:
+    """Read a possibly qualified name such as ``javax.persistence.Entity``."""
+    if not isinstance(__token_at(tokens, index), Identifier):
+        return None, index
+    parts = [str(tokens[index].value)]
+    index += 1
+    while __value_at(tokens, index) == "." and isinstance(
+        __token_at(tokens, index + 1), Identifier
+    ):
+        parts.append(str(tokens[index + 1].value))
+        index += 2
+    return ".".join(parts), index
+
+
+def __token_at(tokens: list[JavaToken], index: int) -> JavaToken | None:
+    if 0 <= index < len(tokens):
+        return tokens[index]
+    return None
+
+
+def __skip_balanced(
+    tokens: list[JavaToken], index: int, opening: str, closing: str
+) -> int:
+    """Skip a balanced pair, e.g. an annotation's ``(...)`` element.
+
+    Skipping the element as a whole keeps braces nested inside it, as in
+    ``@Table(indexes = {@Index(name = "x")})``, from being mistaken for the
+    start of a class body.
+    """
+    if __value_at(tokens, index) != opening:
+        return index
+    depth = 0
+    while index < len(tokens):
+        value = tokens[index].value
+        if value == opening:
+            depth += 1
+        elif value == closing:
+            depth -= 1
+            if depth == 0:
+                return index + 1
+        index += 1
+    return index
 
 
 def get_class_from_tree(unit: CompilationUnit) -> TypeDeclaration:
