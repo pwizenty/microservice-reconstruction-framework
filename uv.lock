@@ -615,7 +615,7 @@ wheels = [
 [[package]]
 name = "ljavalang"
 version = "2.1.0"
-source = { git = "https://github.com/pwizenty/Ljavalang.git?rev=330d58bafbf294c24a1d6282c038830e2386f1b8#330d58bafbf294c24a1d6282c038830e2386f1b8" }
+source = { git = "https://github.com/pwizenty/Ljavalang.git?rev=c3b120c71126c3fd204f7316258831ec6797f3d6#c3b120c71126c3fd204f7316258831ec6797f3d6" }
 
 [[package]]
 name = "microservice-reconstruction-framework"
@@ -645,7 +645,7 @@ integration = [
 
 [package.metadata]
 requires-dist = [
-    { name = "ljavalang", git = "https://github.com/pwizenty/Ljavalang.git?rev=330d58bafbf294c24a1d6282c038830e2386f1b8" },
+    { name = "ljavalang", git = "https://github.com/pwizenty/Ljavalang.git?rev=c3b120c71126c3fd204f7316258831ec6797f3d6" },
     { name = "pymongo", specifier = ">=4.8" },
     { name = "pyyaml", specifier = ">=6.0" },
 ]
