@@ -3,7 +3,40 @@
     {
       "collections": [],
       "data": [],
-      "data_structures": [],
+      "data_structures": [
+        {
+          "data": [
+            {
+              "name": "Entity",
+              "values": {}
+            }
+          ],
+          "fields": [
+            {
+              "data": [
+                {
+                  "name": "Identifier",
+                  "values": {}
+                }
+              ],
+              "field_type": {
+                "name": "string"
+              },
+              "name": "customerId"
+            },
+            {
+              "data": [],
+              "field_type": {
+                "name": "string"
+              },
+              "name": "firstname"
+            }
+          ],
+          "name": "Customer",
+          "origin_file": "src/com/example/customercore/domain/Customer.java",
+          "qualified_name": "com.example.customercore.CustomerCore.Customer"
+        }
+      ],
       "enums": [],
       "name": "CustomerCore",
       "origin_file": "src/com/example/customercore/CustomerCoreApplication.java",
@@ -40,11 +73,9 @@
                   "communication_type": "Synchronous",
                   "data": [],
                   "exchange_pattern": "In",
-                  "name": "response",
+                  "name": "filter",
                   "type": {
-                    "class_type": "UNSPECIFIED",
-                    "name": "ResponseEntity",
-                    "qualified_name": "UnknownContext.ResponseEntity"
+                    "name": "String"
                   }
                 },
                 {

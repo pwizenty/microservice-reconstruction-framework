@@ -272,6 +272,11 @@ class SpringPlugin(Plugin):
         complex_type.qualified_name = adjust_qualified_name(
             qualified_name, complex_type.qualified_name
         )
+        if qualified_name == UNKNOWN_CONTEXT and class_type is not ClassType.COLLECTION:
+            # The type belongs to none of the reconstructed microservices, e.g.
+            # a framework class such as ResponseEntity. Reporting it as a data
+            # structure would claim a domain data model that does not exist.
+            complex_type.class_type = ClassType.UNSPECIFIED
         if complex_type.class_type is ClassType.COLLECTION:
             complex_type_list = deepcopy(complex_type)
             complex_type.class_type = ClassType.DATA_STRUCTURE

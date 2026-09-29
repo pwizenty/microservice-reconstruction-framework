@@ -4,6 +4,8 @@ Analyses Java source code artifacts for annotations of the Spring framework,
 e.g., @Entity or @SpringBootApplication, to identify relevant information.
 """
 
+import logging
+
 from javalang.tree import FieldDeclaration, TypeArgument
 
 from mrf.modules.domain_data import (
@@ -44,6 +46,8 @@ from mrf.utilities.sping import (
     ID_ANNOTATIONS,
     INFRASTRUCTURE_TECHNOLOGIES,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class JavaPlugin(Plugin):
@@ -140,6 +144,16 @@ class JavaPlugin(Plugin):
                 (c for c in self.contexts if c.qualified_name == context_name),
                 self.__handle_unknown_context(),
             )
+            # Reconstructing the fields of another entity already adds this
+            # structure as a dependency, without the DDD meta-data an entity
+            # carries. Replace that plainer version instead of adding a second
+            # structure of the same name.
+            existing = next(
+                (s for s in context.data_structures if s.name == structure.name),
+                None,
+            )
+            if existing is not None:
+                context.data_structures.remove(existing)
             context.data_structures.append(structure)
 
     def __reconstruct_data_structure(
@@ -270,13 +284,28 @@ class JavaPlugin(Plugin):
                     for java in self.java_classes
                     if java.path.endswith(class_name + ".java")
                 ),
+                None,
             )
+            if java_class is None:
+                # The type is not part of the analysed system, e.g. a framework
+                # class such as ResponseEntity. Without a source file there is
+                # nothing to reconstruct, so it stays an unspecified type.
+                logger.debug("No source file for %s, treated as foreign", import_name)
+                return ComplexType(class_name, import_name, ClassType.UNSPECIFIED)
 
             structure = self.__reconstruct_data_structure(java_class)
             context_name = self.__find_context_name(structure.qualified_name)
             context = next(
-                c for c in self.contexts if c.qualified_name.startswith(context_name)
+                (c for c in self.contexts if c.qualified_name.startswith(context_name)),
+                None,
             )
+            if context is None:
+                # The type resolves to no reconstructed context, so there is no
+                # place to put the structure.
+                logger.debug("No context for %s, treated as foreign", import_name)
+                return ComplexType(
+                    structure.name, structure.qualified_name, ClassType.UNSPECIFIED
+                )
             if not any(
                 existing.name == structure.name for existing in context.data_structures
             ):
@@ -301,11 +330,21 @@ class JavaPlugin(Plugin):
             )
             context_name = self.__find_context_name(import_name)
             context = next(
-                c
-                for c in self.contexts
-                if c.qualified_name.startswith(context_name)
-                or context_name.startswith(c.qualified_name)
+                (
+                    c
+                    for c in self.contexts
+                    if c.qualified_name.startswith(context_name)
+                    or context_name.startswith(c.qualified_name)
+                ),
+                None,
             )
+            if context is None:
+                logger.debug("No context for %s, treated as foreign", import_name)
+                return ComplexType(
+                    complex_type.name,
+                    complex_type.qualified_name,
+                    ClassType.UNSPECIFIED,
+                )
             context.collections.append(collection)
             return complex_type
         type = ComplexType(UNKNOWN_TYPE, UNKNOWN_TYPE, ClassType.UNSPECIFIED)

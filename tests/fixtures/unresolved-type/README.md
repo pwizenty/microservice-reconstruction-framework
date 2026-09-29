@@ -22,20 +22,26 @@ the qualified name as the literal string `"None"`:
     "qualified_name": "None.ResponseEntity"
 
 Downstream that reached LEMMA as a data type of a context named `None`, so the
-generated service model imported a `None.data` that does not exist. The method
-now falls back to `UNKNOWN_CONTEXT`, the same marker the Java plugin already
-uses, and the expected output records
+generated service model imported a `None.data` that does not exist. Worse, the
+dependency phase then searched the sources for a `ResponseEntity.java`, found
+none and aborted the entire reconstruction with a `StopIteration`.
 
-    "qualified_name": "UnknownContext.ResponseEntity"
+The expected output now records both halves of the fix:
+
+    "qualified_name": "UnknownContext.ResponseEntity",
+    "class_type": "UNSPECIFIED"
+
+`UNKNOWN_CONTEXT` is the marker the Java plugin already uses, and the
+unspecified class type keeps a type that belongs to no reconstructed
+microservice out of the domain models. LEMMA turns an unspecified type into its
+`unspecified` primitive, so no data model is imported for it.
 
 ## Notes on the expected output
 - The fixture defines no entity, so `contexts` holds the bounded context
   without any data structures. The interesting part is under `microservices`.
-- `UnknownContext` is a marker, not a reconstructed context: no context of that
-  name is created here, so a LEMMA service model generated from this output
-  still imports a data model that does not exist. Representing types from
-  outside the reconstructed system is an open question, this fixture only pins
-  down that the marker is used instead of a stringified `None`.
+- The parameter keeps the qualified name `UnknownContext.ResponseEntity`. The
+  name records where the type could not be placed; the `UNSPECIFIED` class type
+  is what stops it from being treated as a data structure.
 - The return type is modelled as a parameter whose `name` is the *type*
   (`String`) with `exchange_pattern: Out`, as in `minimal-spring`.
 
