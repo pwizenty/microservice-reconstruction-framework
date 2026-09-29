@@ -45,6 +45,7 @@ from mrf.utilities.sping import (
     CONTEXT_ANNOTATION,
     ENTITY_ANNOTATION,
     ID_ANNOTATIONS,
+    INFRASTRUCTURE_ANNOTATIONS,
     INFRASTRUCTURE_TECHNOLOGIES,
 )
 
@@ -121,8 +122,12 @@ class JavaPlugin(Plugin):
         clazz = get_class_from_tree(java_class.tree)
         if has_annotation(clazz, [CONTEXT_ANNOTATION]):
             name = get_class_name(clazz).removesuffix(APPLICATION_CLASS)
-            # Check if context is related to a Spring infrastructure technology
-            if any(t in name.lower() for t in INFRASTRUCTURE_TECHNOLOGIES):
+            # Infrastructure runs the system rather than belonging to its
+            # domain, so it is neither a context nor a microservice. The
+            # operation phase reconstructs it as an infrastructure node.
+            if has_annotation(clazz, INFRASTRUCTURE_ANNOTATIONS) or any(
+                t in name.lower() for t in INFRASTRUCTURE_TECHNOLOGIES
+            ):
                 return None
             qualified_name = (
                 get_qualified_class_name(java_class.tree).removesuffix(

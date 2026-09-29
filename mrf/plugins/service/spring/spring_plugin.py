@@ -50,6 +50,7 @@ from mrf.utilities.java_utils import (
 from mrf.utilities.sping import (
     APPLICATION_CLASS,
     CONTROLLER_CLASS,
+    INFRASTRUCTURE_ANNOTATIONS,
     INFRASTRUCTURE_TECHNOLOGIES,
     REST_CONTROLLER,
     REST_OPERATIONS,
@@ -118,7 +119,12 @@ class SpringPlugin(Plugin):
         clazz = get_class_from_tree(java_class.tree)
         if has_annotation(clazz, [SPRING_BOOT_APPLICATION]):
             name = get_class_name(clazz).removesuffix(APPLICATION_CLASS)
-            if any(t in name.lower() for t in INFRASTRUCTURE_TECHNOLOGIES):
+            # Infrastructure runs the system rather than belonging to its
+            # domain, so it is neither a context nor a microservice. The
+            # operation phase reconstructs it as an infrastructure node.
+            if has_annotation(clazz, INFRASTRUCTURE_ANNOTATIONS) or any(
+                t in name.lower() for t in INFRASTRUCTURE_TECHNOLOGIES
+            ):
                 return None
             qualified_name = (
                 get_qualified_class_name(java_class.tree).removesuffix(
