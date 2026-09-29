@@ -57,7 +57,7 @@ integration = [
 default-groups = ["dev"]
 
 [tool.uv.sources]
-ljavalang = { git = "https://github.com/pwizenty/Ljavalang.git", rev = "330d58bafbf294c24a1d6282c038830e2386f1b8" }
+ljavalang = { git = "https://github.com/pwizenty/Ljavalang.git", rev = "c3b120c71126c3fd204f7316258831ec6797f3d6" }
 
 [tool.hatch.build.targets.wheel]
 packages = ["mrf"]

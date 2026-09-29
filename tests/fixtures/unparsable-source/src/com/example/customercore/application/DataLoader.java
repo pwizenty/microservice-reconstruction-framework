@@ -5,6 +5,6 @@ import java.util.Map;
 
 public class DataLoader {
     private List<Map<String, String>> loadCustomers() {
-        return reader.readerFor(Map.class).with(schema).readValues(file);
+        return registry.module(schema).readAll();
     }
 }

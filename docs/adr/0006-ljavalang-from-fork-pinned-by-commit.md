@@ -4,6 +4,7 @@
 - Date: 2026-09-28
 - Deciders: Philip Wizenty
 - Supersedes: –
+- Amended: 2026-09-29, pin moved to `c3b120c` (see *Amendments*)
 
 ## Context and problem statement
 ADR-0003 kept `ljavalang` as the Java parser and ADR-0005 pinned it through
@@ -45,7 +46,7 @@ Chosen option: **1**. `pyproject.toml` declares
 
 ```toml
 [tool.uv.sources]
-ljavalang = { git = "https://github.com/pwizenty/Ljavalang.git", rev = "330d58b…" }
+ljavalang = { git = "https://github.com/pwizenty/Ljavalang.git", rev = "c3b120c…" }
 ```
 
 and `uv.lock` records the resolved commit, so `uv sync --locked` reproduces the
@@ -100,3 +101,38 @@ published, so the artefact is citable without a GitHub reference?
 - Good, because the edit loop is immediate.
 - Bad, because it breaks every checkout without a sibling directory, and records
   no revision at all.
+
+## Amendments
+### 2026-09-29: pin moved from `330d58b` to `c3b120c`
+The decision is unchanged, this records the bump the follow-up above asks to
+make deliberately.
+
+`330d58b` reserved the keywords of a Java 9 module declaration globally.
+Java restricts them to module declarations and leaves them as ordinary
+identifiers everywhere else, so files using one as a method or variable name
+failed to parse - and the error was reported at a token earlier in the
+statement, which hides the cause. Jackson's fluent reader, written as
+`reader.readerFor(Map.class).with(schema)`, made three files of Lakeside
+Mutual unreadable and with them, before `load_classes` learned to skip such a
+file, the whole system.
+
+`c3b120c` *"Tokenizer: Stop reserving the module directives as keywords"*
+frees `requires`, `exports`, `opens`, `to`, `uses`, `provides`, `with` and
+`transitive`. `module` stays reserved because the parser needs it to recognise
+a module declaration; the directives that follow it are accepted by value, so
+module declarations still parse. Its test suite goes from 121 to 126 tests.
+
+Verified before the bump, against both revisions:
+
+- the unit and golden suites pass either way (41 tests)
+- the reconstruction of Lakeside Mutual's `customer-core` yields byte-identical
+  documents, so no expected output and no LEMMA model changes
+- all 210 Java files of Lakeside Mutual now parse, where three were skipped
+
+The parser defect is therefore invisible in the reconstruction result of the
+analysed systems. What changes is that the result is no longer reported as
+incomplete.
+
+TODO(author): the fix is worth raising upstream, which the follow-up above
+already asks for. It is a defect of ljavalang itself, not of this project's
+fork.
