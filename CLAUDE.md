@@ -20,11 +20,12 @@ Before claiming a task is done: ruff, mypy and pytest must pass. Show the output
 - `mrf/utilities/command_line.py` – argument parsing, file loading, `SourceFile`
 - `mrf/modules/` – technology-independent architecture model
   (`service.py`: Microservice/Interface/Operation; `domain_data.py`: Context/DataStructure/…)
-- `mrf/modules/reconstruction_handler.py` – orchestrates phases: domain data → services → (operation, planned)
+- `mrf/modules/reconstruction_handler.py` – orchestrates phases: domain data → services → operation
 - `mrf/plugins/` – technology plugins implementing `Plugin` ABC (`reconstruction_plugin.py`)
   - `data/java/` – domain data from JPA entities; `service/spring/` – services/REST interfaces
+  - `operation/docker/` – operation nodes from Compose/Dockerfiles (ADR-0008); needs the system root as `-t`
   - `common/common_plugin.py` – shared `Data` (meta-data) and `JavaClassArtifact`
-- `mrf/utilities/java_utils.py`, `mrf/utilities/sping.py` – Java/Spring parsing helpers & constants
+- `mrf/utilities/java_utils.py`, `mrf/utilities/sping.py`, `mrf/utilities/docker.py` – parsing helpers & constants
 - `mrf/repositories/` – mapping model → `R*` persistence classes → MongoDB
 
 Dependency direction: plugins → modules/utilities; repositories → modules.

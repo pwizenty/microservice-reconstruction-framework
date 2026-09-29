@@ -1,1 +1,1 @@
-"""Plugins reconstructing operation information (planned)."""
+"""Plugins reconstructing the operation of a software system."""

@@ -52,7 +52,7 @@ def to_plain(value):
 
 def load_source_files(fixture: pathlib.Path) -> list[SourceFile]:
     """Read a fixture's sources with paths relative to the fixture root."""
-    paths = sorted((fixture / "src").rglob("*.java"))
+    paths = sorted(p for p in (fixture / "src").rglob("*") if p.is_file())
     return [
         SourceFile(
             str(path.relative_to(fixture)),
@@ -85,12 +85,14 @@ def reconstruct_pipeline(fixture: pathlib.Path) -> dict:
     """
     reset_handler()
     handler = ReconstructionHandler(
-        load_source_files(fixture), [PluginType.JAVA, PluginType.SPRING]
+        load_source_files(fixture),
+        [PluginType.JAVA, PluginType.SPRING, PluginType.DOCKER],
     )
     handler.reconstruct_start()
     return {
         "microservices": to_plain(handler.reconstructed_service),
         "contexts": to_plain(handler.reconstructed_data),
+        "operation": to_plain(handler.reconstructed_operation),
     }
 
 
@@ -100,6 +102,7 @@ def reset_handler() -> None:
     ReconstructionHandler.source_files = []
     ReconstructionHandler.reconstructed_data = []
     ReconstructionHandler.reconstructed_service = []
+    ReconstructionHandler.reconstructed_operation = []
     ReconstructionHandler.plugins = []
 
 
