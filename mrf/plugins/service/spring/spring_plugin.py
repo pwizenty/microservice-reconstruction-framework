@@ -15,7 +15,12 @@ from javalang.tree import (
     ReferenceType,
 )
 
-from mrf.modules.domain_data import ClassType, ComplexType, PrimitiveType
+from mrf.modules.domain_data import (
+    UNKNOWN_CONTEXT,
+    ClassType,
+    ComplexType,
+    PrimitiveType,
+)
 from mrf.modules.service import (
     MICROSERVICE_FUNCTIONAL,
     MICROSERVICE_PUBLIC,
@@ -280,7 +285,18 @@ class SpringPlugin(Plugin):
         self.complex_types.append(complex_type)
         return complex_type
 
-    def __find_microservice(self, complex_type_qualified_name: str):
+    def __find_microservice(self, complex_type_qualified_name: str) -> str:
+        """Find the microservice a complex type belongs to.
+
+        Args:
+            complex_type_qualified_name (str): Qualified name of the type
+
+        Returns:
+            str: Qualified name of the owning microservice, or
+                :data:`UNKNOWN_CONTEXT` for a type that belongs to none of the
+                reconstructed microservices, e.g. a framework type such as
+                ``ResponseEntity``.
+        """
         for ms in self.microservices:
             if complex_type_qualified_name == ms.qualified_name.removesuffix(
                 ms.name
@@ -288,4 +304,4 @@ class SpringPlugin(Plugin):
                 ms.qualified_name.removesuffix(ms.name)
             ):
                 return ms.qualified_name
-        return None
+        return UNKNOWN_CONTEXT
