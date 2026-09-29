@@ -12,7 +12,6 @@ be reproducible.
 - Integration:  `uv run pytest -m integration` (Docker/testcontainers)
 - Lint+format:  `uv run ruff check --fix && uv run ruff format`
 - Types:        `uv run mypy`
-- Docs:         `uv run make html`
 
 Before claiming a task is done: ruff, mypy and pytest must pass. Show the output.
 
@@ -38,7 +37,7 @@ Index: @docs/adr/README.md
 - Changes to dependencies, persistence, plugin API or the model need an ADR.
 
 ## Conventions
-- Python ≥ 3.12, full type hints, Google-style docstrings (rendered by Sphinx napoleon)
+- Python ≥ 3.12, full type hints, Google-style docstrings
 - Absolute imports only: `from mrf.utilities…` – never `from utilities…`
 - `logging` instead of `print` (new code); log via `logging.getLogger(__name__)`
 - No mutable class-level defaults; use `dataclasses.field(default_factory=list)`
