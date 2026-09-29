@@ -7,8 +7,13 @@ import yaml
 from pymongo import MongoClient
 
 from mrf.modules.domain_data import Context
+from mrf.modules.operation import OperationNode
 from mrf.modules.service import Microservice
 from mrf.repositories.domain.data import RContext, transform_context_for_database
+from mrf.repositories.operation.operation import (
+    ROperationNode,
+    transform_operation_node_for_database,
+)
 from mrf.repositories.service.service import (
     RMicroservice,
     transform_microservice_for_database,
@@ -49,6 +54,25 @@ def save_microservices(microservices: list[Microservice]):
     for r_microservice in r_microservices:
         microservice_dict = asdict(r_microservice)
         collection_microservices.insert_one(microservice_dict)
+
+
+def save_operation_nodes(nodes: list[OperationNode]):
+    """Method for saving the reconstructed operation information to a database.
+
+    Args:
+        nodes ([:class:`OperationNode`]): List of reconstructed operation
+            information.
+    """
+    database = __setup_database()
+    collection_operation = database["operation"]
+    r_nodes: list[ROperationNode] = []
+
+    for node in nodes:
+        r_nodes.append(transform_operation_node_for_database(node))
+
+    for r_node in r_nodes:
+        node_dict = asdict(r_node)
+        collection_operation.insert_one(node_dict)
 
 
 def __setup_database():

@@ -1,6 +1,6 @@
 # ADR-0008: Reconstruct deployment into operation nodes, in a third collection
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-29
 - Deciders: Philip Wizenty
 - Supersedes: –
