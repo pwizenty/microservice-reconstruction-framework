@@ -1,0 +1,109 @@
+{
+  "contexts": [
+    {
+      "collections": [],
+      "data": [],
+      "data_structures": [],
+      "enums": [],
+      "name": "CustomerCore",
+      "origin_file": "src/com/example/customercore/CustomerCoreApplication.java",
+      "qualified_name": "com.example.customercore.CustomerCore"
+    }
+  ],
+  "microservices": [
+    {
+      "data": [
+        {
+          "name": "public",
+          "values": {}
+        },
+        {
+          "name": "functional",
+          "values": {}
+        }
+      ],
+      "interfaces": [
+        {
+          "data": [],
+          "name": "Customer",
+          "operations": [
+            {
+              "data": [
+                {
+                  "name": "DeleteMapping",
+                  "values": {}
+                }
+              ],
+              "name": "deleteCustomer",
+              "parameters": [
+                {
+                  "communication_type": "Synchronous",
+                  "data": [],
+                  "exchange_pattern": "In",
+                  "name": "id",
+                  "type": {
+                    "name": "String"
+                  }
+                }
+              ]
+            },
+            {
+              "data": [
+                {
+                  "name": "PostMapping",
+                  "values": {}
+                }
+              ],
+              "name": "createCustomer",
+              "parameters": [
+                {
+                  "communication_type": "Synchronous",
+                  "data": [],
+                  "exchange_pattern": "In",
+                  "name": "name",
+                  "type": {
+                    "name": "String"
+                  }
+                }
+              ]
+            },
+            {
+              "data": [
+                {
+                  "name": "GetMapping",
+                  "values": {}
+                }
+              ],
+              "name": "getCustomers",
+              "parameters": [
+                {
+                  "communication_type": "Synchronous",
+                  "data": [],
+                  "exchange_pattern": "In",
+                  "name": "filter",
+                  "type": {
+                    "name": "String"
+                  }
+                },
+                {
+                  "communication_type": "Synchronous",
+                  "data": [],
+                  "exchange_pattern": "Out",
+                  "name": "String",
+                  "type": {
+                    "name": "String"
+                  }
+                }
+              ]
+            }
+          ],
+          "qualified_name": "com.example.customercore.CustomerCore.Customer"
+        }
+      ],
+      "name": "CustomerCore",
+      "origin_file": "src/com/example/customercore/CustomerCoreApplication.java",
+      "qualified_name": "com.example.customercore.CustomerCore"
+    }
+  ],
+  "operation": []
+}

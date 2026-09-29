@@ -30,6 +30,13 @@ TECHNOLOGY_SPRING_TYPES = ["responseentity"]
 
 COLLECTION_TYPES = ["list"]
 
+VOID_TYPES = ["void"]
+"""Names of the Java types that express the absence of a return value.
+
+Covers the primitive ``void`` and the class ``java.lang.Void``, which Spring
+uses to say that a response carries no body, as in ``ResponseEntity<Void>``.
+"""
+
 PRIMITIVE_JAVA_TYPES = [
     "byte",
     "short",
