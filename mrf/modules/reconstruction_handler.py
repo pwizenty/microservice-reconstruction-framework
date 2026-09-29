@@ -8,11 +8,17 @@ import logging
 from typing import ClassVar
 
 from mrf.modules.domain_data import Context
+from mrf.modules.operation import OperationNode
 from mrf.modules.service import Microservice
 from mrf.plugins.data.java.java_plugin import JavaPlugin
+from mrf.plugins.operation.docker.docker_plugin import DockerPlugin
 from mrf.plugins.reconstruction_plugin import PluginType
 from mrf.plugins.service.spring.spring_plugin import SpringPlugin
-from mrf.repositories.mongo_repository import save_contexts, save_microservices
+from mrf.repositories.mongo_repository import (
+    save_contexts,
+    save_microservices,
+    save_operation_nodes,
+)
 from mrf.utilities.command_line import SourceFile
 
 logger = logging.getLogger(__name__)
@@ -29,6 +35,7 @@ class ReconstructionHandler:
     source_files: ClassVar[list[SourceFile]] = []
     reconstructed_data: ClassVar[list[Context]] = []
     reconstructed_service: ClassVar[list[Microservice]] = []
+    reconstructed_operation: ClassVar[list[OperationNode]] = []
     plugins: ClassVar[list[PluginType]] = []
 
     def __new__(
@@ -57,6 +64,7 @@ class ReconstructionHandler:
         """
         self.__reconstruct_data(self.source_files)
         self.__reconstruct_service(self.source_files)
+        self.__reconstruct_operation(self.source_files)
 
     def __reconstruct_data(self, source_files: list[SourceFile]) -> None:
         if PluginType.JAVA in self.plugins:
@@ -77,10 +85,26 @@ class ReconstructionHandler:
                 self.reconstructed_data, contexts
             )
 
-    def reconstruct_save(self) -> None:
-        """Save the reconstructed architecture information to the database."""
-        save_contexts(self.reconstructed_data)
-        save_microservices(self.reconstructed_service)
+    def __reconstruct_operation(self, source_files: list[SourceFile]) -> None:
+        if PluginType.DOCKER in self.plugins:
+            plugin = DockerPlugin()
+            plugin.execute_reconstruction(source_files)
+            # The microservices a container deploys are the result of the
+            # service phase, so they are assigned once that has run.
+            nodes = plugin.assign_deployed_services(self.reconstructed_service)
+            # Assign on the class, not the instance: the attribute is shared
+            # state of the singleton (see the note above).
+            ReconstructionHandler.reconstructed_operation = list(nodes)
+
+    def reconstruct_save(self, replace: bool = False) -> None:
+        """Save the reconstructed architecture information to the database.
+
+        Args:
+            replace (bool): Drop the reconstruction of earlier runs first
+        """
+        save_contexts(self.reconstructed_data, replace)
+        save_microservices(self.reconstructed_service, replace)
+        save_operation_nodes(self.reconstructed_operation, replace)
 
     def __merge_contexts(
         self, base: list[Context], other: list[Context]

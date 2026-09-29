@@ -1,0 +1,74 @@
+{
+  "contexts": [
+    {
+      "collections": [],
+      "data": [],
+      "data_structures": [],
+      "enums": [],
+      "name": "CustomerCore",
+      "origin_file": "src/customer-core/src/com/example/customercore/CustomerCoreApplication.java",
+      "qualified_name": "com.example.customercore.CustomerCore"
+    }
+  ],
+  "microservices": [
+    {
+      "data": [
+        {
+          "name": "public",
+          "values": {}
+        },
+        {
+          "name": "functional",
+          "values": {}
+        }
+      ],
+      "interfaces": [],
+      "name": "CustomerCore",
+      "origin_file": "src/customer-core/src/com/example/customercore/CustomerCoreApplication.java",
+      "qualified_name": "com.example.customercore.CustomerCore"
+    }
+  ],
+  "operation": [
+    {
+      "data": [
+        {
+          "name": "ComposeService",
+          "values": {
+            "Name": "eureka"
+          }
+        }
+      ],
+      "depends_on": [],
+      "deployed_services": [],
+      "name": "Eureka",
+      "node_type": "INFRASTRUCTURE",
+      "operation_environment": null,
+      "origin_file": "src/docker-compose.yml",
+      "qualified_name": "Eureka"
+    },
+    {
+      "data": [
+        {
+          "name": "ComposeService",
+          "values": {
+            "Name": "customer-core"
+          }
+        }
+      ],
+      "depends_on": [
+        "Eureka"
+      ],
+      "deployed_services": [
+        {
+          "name": "CustomerCore",
+          "qualified_name": "com.example.customercore.CustomerCore"
+        }
+      ],
+      "name": "CustomerCoreContainer",
+      "node_type": "CONTAINER",
+      "operation_environment": "openjdk:11-jre-slim",
+      "origin_file": "src/docker-compose.yml",
+      "qualified_name": "CustomerCoreContainer"
+    }
+  ]
+}

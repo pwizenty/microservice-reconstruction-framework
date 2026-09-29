@@ -1,0 +1,14 @@
+version: "3"
+services:
+  eureka:
+    image: springcloud/eureka
+    ports:
+      - "8761:8761"
+
+  customer-core:
+    build: customer-core
+    image: example/customer-core
+    depends_on:
+      - eureka
+    ports:
+      - "8110:8110"
