@@ -5,6 +5,7 @@ e.g., @Entity or @SpringBootApplication, to identify relevant information.
 """
 
 import logging
+from pathlib import PurePath
 
 from javalang.tree import FieldDeclaration, TypeArgument
 
@@ -56,6 +57,9 @@ class JavaPlugin(Plugin):
     def __init__(self):
         self.java_classes: list[JavaClassArtifact] = []
         self.contexts: list[Context] = []
+        # Types whose fields are currently being reconstructed, to break
+        # cycles between types that refer to each other.
+        self.__resolving: set[str] = set()
 
     def file_types(self):
         """Method to receives supported file types of the Java plugin.
@@ -282,7 +286,7 @@ class JavaPlugin(Plugin):
                 (
                     java
                     for java in self.java_classes
-                    if java.path.endswith(class_name + ".java")
+                    if PurePath(java.path).name == class_name + ".java"
                 ),
                 None,
             )
@@ -293,7 +297,18 @@ class JavaPlugin(Plugin):
                 logger.debug("No source file for %s, treated as foreign", import_name)
                 return ComplexType(class_name, import_name, ClassType.UNSPECIFIED)
 
-            structure = self.__reconstruct_data_structure(java_class)
+            if class_name in self.__resolving:
+                # The type refers to itself, directly or through another type.
+                # Reconstructing its fields again would not terminate, and the
+                # structure being built already covers them.
+                logger.debug("Cycle while resolving %s", import_name)
+                return ComplexType(class_name, import_name, ClassType.DATA_STRUCTURE)
+
+            self.__resolving.add(class_name)
+            try:
+                structure = self.__reconstruct_data_structure(java_class)
+            finally:
+                self.__resolving.discard(class_name)
             context_name = self.__find_context_name(structure.qualified_name)
             context = next(
                 (c for c in self.contexts if c.qualified_name.startswith(context_name)),

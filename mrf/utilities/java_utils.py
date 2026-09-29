@@ -1,9 +1,12 @@
 """Utility module for handling Java-based source code artifacts."""
 
+import logging
 from dataclasses import dataclass
 from enum import Enum
 
 import javalang as java_lang
+from javalang.parser import JavaParserBaseException
+from javalang.tokenizer import LexerError
 from javalang.tree import (
     Annotation,
     AnnotationDeclaration,
@@ -20,6 +23,8 @@ from javalang.tree import (
 from mrf.plugins.common.common_plugin import JavaClassArtifact
 from mrf.utilities.command_line import SourceFile
 from mrf.utilities.sping import APPLICATION_CLASS
+
+logger = logging.getLogger(__name__)
 
 TECHNOLOGY_SPRING_TYPES = ["responseentity"]
 
@@ -319,11 +324,31 @@ def load_classes(
         java_classes (JavaClassArtifact): List of Java class artifacts
     """
     java_classes: list[JavaClassArtifact] = []
+    unparsable: list[str] = []
     for s in source_files:
         if s.suffix in java_types:
-            tree = parse_java_file(s.file)
+            try:
+                tree = parse_java_file(s.file)
+            except (JavaParserBaseException, LexerError) as error:
+                # A single file the parser cannot read must not end the
+                # reconstruction of the whole system. Report it instead, so
+                # that the gap in the result stays visible.
+                unparsable.append(s.path)
+                logger.warning(
+                    "Skipping %s, the parser cannot read it: %s",
+                    s.path,
+                    type(error).__name__,
+                )
+                continue
             java_class = JavaClassArtifact(tree, s.path)
             java_classes.append(java_class)
+    if unparsable:
+        logger.warning(
+            "%d of %d Java files were skipped, the reconstruction is incomplete: %s",
+            len(unparsable),
+            len(unparsable) + len(java_classes),
+            ", ".join(unparsable),
+        )
     return java_classes
 
 
