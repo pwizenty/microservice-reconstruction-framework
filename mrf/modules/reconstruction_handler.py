@@ -96,11 +96,15 @@ class ReconstructionHandler:
             # state of the singleton (see the note above).
             ReconstructionHandler.reconstructed_operation = list(nodes)
 
-    def reconstruct_save(self) -> None:
-        """Save the reconstructed architecture information to the database."""
-        save_contexts(self.reconstructed_data)
-        save_microservices(self.reconstructed_service)
-        save_operation_nodes(self.reconstructed_operation)
+    def reconstruct_save(self, replace: bool = False) -> None:
+        """Save the reconstructed architecture information to the database.
+
+        Args:
+            replace (bool): Drop the reconstruction of earlier runs first
+        """
+        save_contexts(self.reconstructed_data, replace)
+        save_microservices(self.reconstructed_service, replace)
+        save_operation_nodes(self.reconstructed_operation, replace)
 
     def __merge_contexts(
         self, base: list[Context], other: list[Context]

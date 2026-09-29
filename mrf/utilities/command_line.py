@@ -51,6 +51,14 @@ def handle_parameters() -> arg_parser.Namespace:
     parser.add_argument(
         "-t", "--target", type=str, help="File path to the system's source code."
     )
+    parser.add_argument(
+        "-r",
+        "--replace",
+        action="store_true",
+        help="Drop the reconstruction of earlier runs before saving this one. "
+        + "Without it a run updates what it finds and leaves the rest, so "
+        + "several systems can share a database.",
+    )
     args = parser.parse_args()
     return args
 

@@ -28,7 +28,7 @@ def main() -> None:
     source_files = line.files_to_source_files(files)
     hdl = ReconstructionHandler(source_files, plugins)
     hdl.reconstruct_start()
-    hdl.reconstruct_save()
+    hdl.reconstruct_save(args.replace)
     logger.info("Reconstruction: End!")
 
 
