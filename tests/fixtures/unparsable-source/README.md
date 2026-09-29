@@ -23,31 +23,29 @@ not be reconstructed for that reason: three of its files hit the defect below.
 The file is now skipped, named in a warning, and counted in a summary.
 
 ## The parser defect this depends on
-The parser is **ljavalang** (see ADR-0003, ADR-0006), which reserves `with` as
-a keyword:
+The parser is **ljavalang** (see ADR-0003, ADR-0006). It reserves the keywords
+of a Java 9 module declaration globally:
 
 ```python
->>> 'with' in javalang.tokenizer.Keyword.VALUES
+>>> 'module' in javalang.tokenizer.Keyword.VALUES
 True
 ```
 
-Java does not. `with` is a *contextual* keyword of derived record creation
-(JEP 468, preview), so ordinary uses of it as an identifier are legal and
-common - Jackson's fluent API being the case here:
+Java does not. Module directives are *restricted* keywords: inside a module
+declaration they are directives, everywhere else they are ordinary identifiers.
+`registry.module(schema)` is therefore legal Java that the parser rejects.
 
-```java
-reader.readerFor(Map.class).with(schema).readValues(file)
-```
+This fixture first used `.with(schema)`, the form that occurs in Lakeside
+Mutual through Jackson's fluent reader and that made three of its files
+unreadable. `with` was freed in the fork, so the file started parsing and this
+fixture silently stopped testing anything - the reconstruction output is the
+same either way, because `DataLoader` carries no annotation and contributes no
+data structure. The trigger is now `module`, which stays reserved because the
+parser needs it to recognise a module declaration at all.
 
-Any `a.with(b)`, `int with = 1;` or `void with() {}` fails the same way. The
-reported position is misleading: the parser blames a token earlier in the
-statement, which is why this looks like a generics problem at first sight.
-
-Should ljavalang stop reserving `with`, this fixture's `DataLoader.java` starts
-parsing and the expected output changes: `Customer` gains nothing, but the
-skip warning disappears and the file count in it changes. Replace the file with
-another construct the parser rejects rather than deleting the fixture - the
-behaviour under test is the skipping, not this particular defect.
+`tests/test_java_utils.py::test_load_classes_skips_a_file_the_parser_cannot_read`
+asserts the rejection directly, so a parser update that makes this construct
+readable fails there rather than quietly hollowing out this fixture.
 
 ## Notes on the expected output
 - `contexts` holds `CustomerCore` with the `Customer` structure, and

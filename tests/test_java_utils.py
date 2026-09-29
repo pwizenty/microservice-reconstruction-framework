@@ -1,6 +1,10 @@
 """Unit tests for the Java parsing helpers."""
 
+import logging
+
 import pytest
+from javalang.parser import JavaParserBaseException
+from mrf.utilities.command_line import SourceFile
 from mrf.utilities.java_utils import (
     HIERARCHY_LEVEL,
     NoJavaDeclrationException,
@@ -10,6 +14,7 @@ from mrf.utilities.java_utils import (
     get_class_name,
     get_qualified_class_name,
     has_annotation,
+    load_classes,
     match_context,
     match_microservice_interface,
     parse_java_file,
@@ -101,3 +106,41 @@ def test_match_microservice_interface_requires_hierarchy_level_parts():
     assert (
         match_microservice_interface("com.lakesidemutual", "com.other.service") is False
     )
+
+
+UNPARSABLE_SOURCE = """
+package com.example;
+
+public class DataLoader {
+    void load() {
+        registry.module(schema);
+    }
+}
+"""
+
+
+def test_load_classes_skips_a_file_the_parser_cannot_read(caplog):
+    """An unreadable file must not end the reconstruction of the readable ones.
+
+    The source uses a restricted keyword as a method name. Which construct the
+    parser rejects is a property of the pinned parser revision, so the test
+    asserts that it is rejected rather than assuming it, and fails loudly if a
+    parser update makes it readable - otherwise this test would silently stop
+    covering anything.
+    """
+    unparsable = SourceFile(
+        "src/com/example/DataLoader.java", UNPARSABLE_SOURCE, ".java"
+    )
+    readable = SourceFile("src/com/example/Customer.java", ENTITY_SOURCE, ".java")
+
+    with pytest.raises(JavaParserBaseException):
+        parse_java_file(UNPARSABLE_SOURCE)
+
+    with caplog.at_level(logging.WARNING):
+        java_classes = load_classes([unparsable, readable], [".java"])
+
+    assert [get_class_name(get_class_from_tree(c.tree)) for c in java_classes] == [
+        "Customer"
+    ]
+    assert "src/com/example/DataLoader.java" in caplog.text
+    assert "the reconstruction is incomplete" in caplog.text
