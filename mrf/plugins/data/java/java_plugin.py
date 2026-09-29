@@ -282,14 +282,7 @@ class JavaPlugin(Plugin):
             class_name = import_name.split(".").pop()
             class_name = class_name.removesuffix("List")
 
-            java_class = next(
-                (
-                    java
-                    for java in self.java_classes
-                    if PurePath(java.path).name == class_name + ".java"
-                ),
-                None,
-            )
+            java_class = self.__find_class(class_name, import_name)
             if java_class is None:
                 # The type is not part of the analysed system, e.g. a framework
                 # class such as ResponseEntity. Without a source file there is
@@ -364,6 +357,44 @@ class JavaPlugin(Plugin):
             return complex_type
         type = ComplexType(UNKNOWN_TYPE, UNKNOWN_TYPE, ClassType.UNSPECIFIED)
         return type
+
+    def __find_class(
+        self, class_name: str, import_name: str
+    ) -> JavaClassArtifact | None:
+        """Find the source of a type, preferring the one in matching packages.
+
+        A system may define the same class name several times, once per
+        microservice: Lakeside Mutual has four ``CustomerId``. Matching by file
+        name alone returns whichever the file system yields first, which files
+        the structure under the context of a different microservice and leaves
+        the one that refers to it without the type.
+
+        Args:
+            class_name (str): Simple name of the type
+            import_name (str): Qualified name the type is resolved from
+
+        Returns:
+            JavaClassArtifact | None: Source of the type, or ``None`` when the
+                system holds none
+        """
+        file_name = class_name + ".java"
+        candidates = [
+            java for java in self.java_classes if PurePath(java.path).name == file_name
+        ]
+        if not candidates:
+            return None
+        if len(candidates) == 1:
+            return candidates[0]
+
+        expected = {part.lower() for part in import_name.split(".")}
+        return max(candidates, key=lambda java: self.__matching_parts(java, expected))
+
+    def __matching_parts(
+        self, java_class: JavaClassArtifact, expected: set[str]
+    ) -> int:
+        """Count the path segments a class shares with a qualified name."""
+        parts = {part.lower() for part in PurePath(java_class.path).parts}
+        return len(parts & expected)
 
     def __handle_package_dependency(self, import_name: str) -> ComplexType:
         # TODO: May need to be adapted, when we don't map a microservice to
