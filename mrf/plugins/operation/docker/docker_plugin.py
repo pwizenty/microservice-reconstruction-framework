@@ -18,16 +18,20 @@ from mrf.plugins.common.common_plugin import Data
 from mrf.plugins.reconstruction_plugin import Plugin
 from mrf.utilities.command_line import SourceFile
 from mrf.utilities.docker import (
+    APPLICATION_PROPERTIES,
     COMPOSE_BUILD_KEY,
     COMPOSE_CONTEXT_KEY,
     COMPOSE_DEPENDS_ON_KEY,
     COMPOSE_FILE_NAMES,
     COMPOSE_SERVICE,
     COMPOSE_SERVICES_KEY,
+    CONFIGURATION_PROPERTIES,
     CONTAINER_SUFFIX,
     DOCKERFILE_FROM,
     DOCKERFILE_NAME,
     INFRASTRUCTURE_NODE_NAMES,
+    MAIN_RESOURCES,
+    SERVICE_PROPERTIES,
 )
 
 logger = logging.getLogger(__name__)
@@ -51,7 +55,7 @@ class DockerPlugin(Plugin):
             [str]: Suffixes of Compose specifications, and the empty suffix of
             a Dockerfile.
         """
-        return [".yml", ".yaml", ""]
+        return [".yml", ".yaml", ".properties", ""]
 
     def execute_reconstruction(
         self, source_files: list[SourceFile]
@@ -150,6 +154,7 @@ class DockerPlugin(Plugin):
                 node.operation_environment = self.__find_operation_environment(
                     directory, source_files
                 )
+                self.__assign_configuration(node, directory, source_files)
             node.origin_file = compose_file.path
             self.nodes.append(node)
 
@@ -220,6 +225,51 @@ class DockerPlugin(Plugin):
         if dockerfile is None:
             return None
         return self.__base_image(dockerfile.file)
+
+    def __assign_configuration(
+        self, node: OperationNode, directory: str, source_files: list[SourceFile]
+    ) -> None:
+        """Read the deployment configuration of a node from its service.
+
+        Reports the values under the names a LEMMA technology model declares
+        them with, so that an operation model assigns them without translating
+        anything.
+        """
+        configuration = next(
+            (
+                f
+                for f in source_files
+                if f.file is not None
+                and PurePath(f.path).name == APPLICATION_PROPERTIES
+                and self.__lies_below(f.path, directory)
+                and MAIN_RESOURCES in PurePath(f.path).as_posix()
+            ),
+            None,
+        )
+        if configuration is None:
+            logger.debug("No %s below %s", APPLICATION_PROPERTIES, directory)
+            return
+
+        values = self.__read_properties(configuration.file)
+        if not values:
+            return
+
+        data = Data(SERVICE_PROPERTIES)
+        data.values = values
+        node.data.append(data)
+
+    def __read_properties(self, configuration: str) -> dict[str, str]:
+        """Read the configured properties, by their name in a technology model."""
+        values: dict[str, str] = {}
+        for line in configuration.splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith(("#", "!")) or "=" not in stripped:
+                continue
+            key, _, value = stripped.partition("=")
+            name = CONFIGURATION_PROPERTIES.get(key.strip())
+            if name is not None:
+                values[name] = value.strip()
+        return values
 
     def __base_image(self, dockerfile: str) -> str | None:
         for line in dockerfile.splitlines():

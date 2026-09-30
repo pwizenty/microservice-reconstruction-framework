@@ -21,6 +21,31 @@ CONTAINER_SUFFIX = "Container"
 COMPOSE_SERVICE = "ComposeService"
 """Meta-data name holding the service name of the Compose specification."""
 
+APPLICATION_PROPERTIES = "application.properties"
+"""File name of the Spring configuration of a service."""
+
+MAIN_RESOURCES = "src/main/resources"
+"""Folder the configuration of a service is read from.
+
+A service also has a configuration below ``src/test/resources``, which
+configures its tests rather than its deployment.
+"""
+
+SERVICE_PROPERTIES = "ServiceProperties"
+"""Meta-data name holding the deployment configuration of a node."""
+
+CONFIGURATION_PROPERTIES = {
+    "spring.application.name": "springApplicationName",
+    "server.port": "serverPort",
+}
+"""Properties read from the Spring configuration, by the name a LEMMA
+technology model declares them under.
+
+The reconstruction reports a value under the name the technology model uses, so
+that an operation model can assign it without translating anything. See the
+technology models of the LEMMA reconstruction bundle.
+"""
+
 INFRASTRUCTURE_NODE_NAMES = [
     "eureka",
     "zuul",

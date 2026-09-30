@@ -14,6 +14,7 @@ The operation phase (ADR-0008), end to end through `ReconstructionHandler`.
 | `docker-compose.yml` | Both node kinds, `build:` and `image:`, and `depends_on` |
 | the `proxy` service | Infrastructure recognised by name although it deploys nothing |
 | `customer-core/Dockerfile` | The operation environment, read from `FROM` |
+| `customer-core/src/main/resources/application.properties` | The deployment configuration of the service |
 | `customer-core/src/…/CustomerCoreApplication.java` | The microservice a container deploys |
 
 Reconstructed from it:
@@ -25,7 +26,15 @@ Reconstructed from it:
   the system's microservices, and a container must deploy one, so recognising
   it as infrastructure is what keeps it in the model at all.
 - `CustomerCoreContainer`, a **container**, which deploys `CustomerCore`,
-  depends on `Eureka` and runs on `openjdk:11-jre-slim`.
+  depends on `Eureka`, runs on `openjdk:11-jre-slim` and carries the
+  configuration of its service as meta-data:
+  `springApplicationName` and `serverPort`.
+
+The configuration also sets `spring.datasource.url`, which is **not** reported:
+only the properties a LEMMA technology model declares are, and they are
+reported under the name it declares them with rather than under their Spring
+name. A property of a test configuration is ignored as well - only
+`src/main/resources` describes a deployment.
 
 The container is matched to its microservice through the build directory: the
 artifact `CustomerCoreApplication.java` was reconstructed from lies below

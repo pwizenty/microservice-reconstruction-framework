@@ -72,6 +72,13 @@
           "values": {
             "Name": "customer-core"
           }
+        },
+        {
+          "name": "ServiceProperties",
+          "values": {
+            "serverPort": "8110",
+            "springApplicationName": "customer-core"
+          }
         }
       ],
       "depends_on": [
