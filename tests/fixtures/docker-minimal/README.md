@@ -12,6 +12,7 @@ The operation phase (ADR-0008), end to end through `ReconstructionHandler`.
 | File | Exercises |
 |---|---|
 | `docker-compose.yml` | Both node kinds, `build:` and `image:`, and `depends_on` |
+| the `proxy` service | Infrastructure recognised by name although it deploys nothing |
 | `customer-core/Dockerfile` | The operation environment, read from `FROM` |
 | `customer-core/src/…/CustomerCoreApplication.java` | The microservice a container deploys |
 
@@ -20,6 +21,9 @@ Reconstructed from it:
 - `Eureka`, an **infrastructure node**, because its Compose service name
   matches `INFRASTRUCTURE_NODE_NAMES`. It has no `build:`, so no operation
   environment, and deploys nothing.
+- `Proxy`, likewise an infrastructure node. A reverse proxy deploys none of
+  the system's microservices, and a container must deploy one, so recognising
+  it as infrastructure is what keeps it in the model at all.
 - `CustomerCoreContainer`, a **container**, which deploys `CustomerCore`,
   depends on `Eureka` and runs on `openjdk:11-jre-slim`.
 

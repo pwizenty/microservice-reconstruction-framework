@@ -28,6 +28,8 @@ INFRASTRUCTURE_NODE_NAMES = [
     "spring-boot-admin",
     "config-server",
     "service-registry",
+    "proxy",
+    "nginx",
 ]
 """Compose service names reconstructed as infrastructure nodes rather than
 containers.
