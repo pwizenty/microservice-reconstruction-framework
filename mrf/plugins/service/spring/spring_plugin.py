@@ -38,6 +38,7 @@ from mrf.utilities.java_utils import (
     COLLECTION_TYPES,
     PRIMITIVE_JAVA_TYPES,
     TECHNOLOGY_SPRING_TYPES,
+    VOID_TYPES,
     adjust_qualified_name,
     get_class_from_tree,
     get_class_name,
@@ -50,6 +51,7 @@ from mrf.utilities.java_utils import (
 from mrf.utilities.sping import (
     APPLICATION_CLASS,
     CONTROLLER_CLASS,
+    INFRASTRUCTURE_ANNOTATIONS,
     INFRASTRUCTURE_TECHNOLOGIES,
     REST_CONTROLLER,
     REST_OPERATIONS,
@@ -118,7 +120,12 @@ class SpringPlugin(Plugin):
         clazz = get_class_from_tree(java_class.tree)
         if has_annotation(clazz, [SPRING_BOOT_APPLICATION]):
             name = get_class_name(clazz).removesuffix(APPLICATION_CLASS)
-            if any(t in name.lower() for t in INFRASTRUCTURE_TECHNOLOGIES):
+            # Infrastructure runs the system rather than belonging to its
+            # domain, so it is neither a context nor a microservice. The
+            # operation phase reconstructs it as an infrastructure node.
+            if has_annotation(clazz, INFRASTRUCTURE_ANNOTATIONS) or any(
+                t in name.lower() for t in INFRASTRUCTURE_TECHNOLOGIES
+            ):
                 return None
             qualified_name = (
                 get_qualified_class_name(java_class.tree).removesuffix(
@@ -174,8 +181,9 @@ class SpringPlugin(Plugin):
         formal_parameters = method.parameters
 
         operation.parameters.extend(self.__handle_parameters(formal_parameters, unit))
-        if return_type != "void":
-            operation.parameters.append(self.__handle_return_type(return_type, unit))
+        return_parameter = self.__handle_return_type(return_type, unit)
+        if return_parameter is not None:
+            operation.parameters.append(return_parameter)
 
         return operation
 
@@ -214,8 +222,25 @@ class SpringPlugin(Plugin):
         return parameter
 
     def __handle_return_type(
-        self, reference_type: ReferenceType, unit: CompilationUnit
-    ) -> Parameter:
+        self, reference_type: ReferenceType | None, unit: CompilationUnit
+    ) -> Parameter | None:
+        """Reconstruct the outgoing parameter of an operation.
+
+        An operation that returns nothing has none. The parser reports the
+        primitive ``void`` as the plain string ``"void"`` rather than a type,
+        and Spring expresses the same through ``ResponseEntity<Void>``.
+
+        Args:
+            reference_type (ReferenceType | None): Return type of the method
+            unit (CompilationUnit): Unit the method is declared in
+
+        Returns:
+            Parameter | None: The outgoing parameter, or ``None`` when the
+                operation returns nothing
+        """
+        if reference_type is None or self.__is_void(reference_type):
+            return None
+
         name = reference_type.name
 
         if reference_type.name.lower() in TECHNOLOGY_SPRING_TYPES:
@@ -228,12 +253,16 @@ class SpringPlugin(Plugin):
 
     def __handle_specific_return_type(
         self, reference_type: ReferenceType, unit: CompilationUnit
-    ) -> Parameter:
+    ) -> Parameter | None:
         arguments = reference_type.arguments
         com_type = CommunicationType.SYNCHRONOUS
         exch_pat = ExchangePattern.OUT
         if arguments is not None:
             parameter_ref_type = arguments[0].type
+            # ResponseEntity<Void> is a response without a body, so the
+            # operation returns nothing.
+            if self.__is_void(parameter_ref_type):
+                return None
             p_type = self.__handle_parameter_type(parameter_ref_type, unit)
             parameter = Parameter(p_type.name, com_type, exch_pat, p_type)
             data = Data(reference_type.name)
@@ -243,6 +272,22 @@ class SpringPlugin(Plugin):
             p_type = self.__handle_parameter_type(reference_type, unit)
             parameter = Parameter(p_type.name, com_type, exch_pat, p_type)
             return parameter
+
+    def __is_void(self, reference_type) -> bool:
+        """Check whether a return type expresses the absence of a value.
+
+        The parser reports the primitive ``void`` as a plain string and every
+        other return type as a node carrying a name, so both shapes reach
+        here.
+        """
+        if reference_type is None:
+            return True
+        name = (
+            reference_type
+            if isinstance(reference_type, str)
+            else getattr(reference_type, "name", "")
+        )
+        return name.lower() in VOID_TYPES
 
     def __handle_parameter_type(
         self, reference_type: ReferenceType, unit: CompilationUnit

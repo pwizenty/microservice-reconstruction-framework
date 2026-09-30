@@ -5,6 +5,11 @@ services:
     ports:
       - "8761:8761"
 
+  proxy:
+    image: nginx
+    depends_on:
+      - customer-core
+
   customer-core:
     build: customer-core
     image: example/customer-core

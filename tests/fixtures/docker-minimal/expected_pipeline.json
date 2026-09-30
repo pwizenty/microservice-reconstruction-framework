@@ -51,6 +51,25 @@
         {
           "name": "ComposeService",
           "values": {
+            "Name": "proxy"
+          }
+        }
+      ],
+      "depends_on": [
+        "CustomerCoreContainer"
+      ],
+      "deployed_services": [],
+      "name": "Proxy",
+      "node_type": "INFRASTRUCTURE",
+      "operation_environment": null,
+      "origin_file": "src/docker-compose.yml",
+      "qualified_name": "Proxy"
+    },
+    {
+      "data": [
+        {
+          "name": "ComposeService",
+          "values": {
             "Name": "customer-core"
           }
         }
