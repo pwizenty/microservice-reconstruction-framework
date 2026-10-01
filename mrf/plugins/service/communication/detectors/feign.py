@@ -15,7 +15,9 @@ under ``name`` and the transport is not stated in the sources.
 
 from javalang.tree import CompilationUnit, TypeDeclaration
 
+from mrf.plugins.common.spring_mapping import find_mapping
 from mrf.plugins.service.communication.detectors.detector import (
+    CalledEndpoint,
     DetectionContext,
     ServiceCall,
 )
@@ -28,6 +30,7 @@ from mrf.utilities.communication import (
     Scheme,
 )
 from mrf.utilities.java_utils import find_annotation, get_annotation_values
+from mrf.utilities.sping import REQUEST_MAPPING, REST_OPERATIONS
 
 
 class FeignDetector:
@@ -83,4 +86,61 @@ class FeignDetector:
         call = service_call_from(
             url, self.technology, evidence, context.configuration, fallback_target=name
         )
-        return [call] if call is not None else []
+        if call is None:
+            return []
+        call.endpoints.extend(self.__called_endpoints(clazz, context))
+        return [call]
+
+    def __called_endpoints(
+        self, clazz: TypeDeclaration, context: DetectionContext
+    ) -> list[CalledEndpoint]:
+        """Read the endpoints the methods of a Feign client address.
+
+        A Feign client declares what it calls the way a controller declares what
+        it offers: the interface may carry a base path, and every method carries
+        a mapping annotation with the rest of it. So the endpoints of the callee
+        this client addresses are stated exactly, and need no analysis of a
+        method body.
+
+        Args:
+            clazz: Parsed declaration of the client interface
+            context: Path, lines and configuration of the analysed file
+
+        Returns:
+            [CalledEndpoint]: The endpoints the client addresses
+        """
+        annotations = getattr(clazz, "annotations", None) or []
+        base = find_mapping(annotations, [REQUEST_MAPPING])
+        base_path = base[1] if base is not None else None
+
+        endpoints: list[CalledEndpoint] = []
+        for method in getattr(clazz, "methods", None) or []:
+            mapping = find_mapping(method.annotations or [], REST_OPERATIONS)
+            if mapping is None:
+                continue
+            annotation, path = mapping
+            position = getattr(annotation, "position", None)
+            endpoints.append(
+                CalledEndpoint(
+                    verb=annotation.name,
+                    path=self.__join(base_path, path),
+                    method=method.name,
+                    evidence=evidence_for(
+                        context.path,
+                        context.lines,
+                        position.line if position is not None else 0,
+                        ArtifactType.SOURCE,
+                    ),
+                )
+            )
+        return sorted(endpoints, key=lambda e: (e.path, e.verb, e.method))
+
+    def __join(self, base: str | None, path: str | None) -> str:
+        """Join the base path of the client with the path of one of its methods.
+
+        Spring reads a method's path relative to the one of its declaration, and
+        either may be absent: a client without a base path states absolute paths
+        on its methods, and a method without a path addresses the base itself.
+        """
+        parts = [p.strip("/") for p in (base, path) if p]
+        return "/" + "/".join(p for p in parts if p)

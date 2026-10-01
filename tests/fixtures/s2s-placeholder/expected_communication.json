@@ -1,7 +1,8 @@
 {
   "Backend": {
     "transport": null,
-    "calls": []
+    "calls": [],
+    "endpoints": []
   },
   "Gateway": {
     "transport": "tls",
@@ -9,14 +10,41 @@
       {
         "artifactType": "SOURCE",
         "file": "src/gateway/src/main/java/com/example/gateway/BackendClient.java",
-        "line": "6",
+        "line": "13",
         "property": "backend.baseURL",
         "resolvedUrl": "https://backend:8443",
         "scheme": "https",
         "snippet": "@FeignClient(name = \"backend\", url = \"${backend.baseURL}\")",
         "target": "Backend",
         "targetKind": "SERVICE",
+        "targetQualifiedName": "com.example.backend.Backend",
         "technology": "Feign"
+      }
+    ],
+    "endpoints": [
+      {
+        "artifactType": "SOURCE",
+        "file": "src/gateway/src/main/java/com/example/gateway/BackendClient.java",
+        "line": "16",
+        "method": "getItems",
+        "path": "/api/items",
+        "snippet": "@GetMapping(value = \"/items\")",
+        "target": "Backend",
+        "targetQualifiedName": "com.example.backend.Backend",
+        "technology": "Feign",
+        "verb": "GetMapping"
+      },
+      {
+        "artifactType": "SOURCE",
+        "file": "src/gateway/src/main/java/com/example/gateway/BackendClient.java",
+        "line": "19",
+        "method": "getItem",
+        "path": "/api/items/{id}",
+        "snippet": "@GetMapping(value = \"/items/{id}\")",
+        "target": "Backend",
+        "targetQualifiedName": "com.example.backend.Backend",
+        "technology": "Feign",
+        "verb": "GetMapping"
       }
     ]
   }
