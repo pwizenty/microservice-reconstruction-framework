@@ -16,6 +16,7 @@ from javalang.tree import (
     EnumDeclaration,
     FieldDeclaration,
     InterfaceDeclaration,
+    Literal,
     RecordDeclaration,
     TypeDeclaration,
 )
@@ -27,6 +28,14 @@ from mrf.utilities.sping import APPLICATION_CLASS
 logger = logging.getLogger(__name__)
 
 TECHNOLOGY_SPRING_TYPES = ["responseentity"]
+
+ANNOTATION_VALUE_ELEMENT = "value"
+"""Name Java gives the element of a single-element annotation.
+
+``@RequestMapping("/customers")`` is shorthand for
+``@RequestMapping(value = "/customers")``, so the unnamed element is
+reported under this name.
+"""
 
 COLLECTION_TYPES = ["list"]
 
@@ -189,6 +198,59 @@ def find_annotation(
         None,
     )
     return annotation
+
+
+def get_annotation_values(annotation: Annotation) -> dict[str, str]:
+    """Read the literal element values of an annotation, by element name.
+
+    Java writes the element of an annotation in three shapes, and all three
+    reach here: a marker annotation such as ``@PathVariable`` has no element, a
+    single-element annotation such as ``@RequestMapping("/customers")`` names
+    none, and ``@RequestParam(value = "filter", defaultValue = "")`` names each
+    of them. The unnamed element is Java's ``value``, so it is reported under
+    that name.
+
+    Only literal values are reported. An element whose value is an expression,
+    such as ``@RequestMapping(method = RequestMethod.GET)``, carries no literal
+    to recover and is left out rather than reported as the text of the
+    expression.
+
+    Args:
+        annotation (Annotation): Parsed Java annotation
+
+    Returns:
+        dict[str, str]: Literal values of the annotation, by element name, with
+            the quotes of a string literal removed
+    """
+    element = annotation.element
+    if element is None:
+        return {}
+
+    if not isinstance(element, list):
+        value = __literal_value(element)
+        return {} if value is None else {ANNOTATION_VALUE_ELEMENT: value}
+
+    values: dict[str, str] = {}
+    for pair in element:
+        name = getattr(pair, "name", None)
+        value = __literal_value(getattr(pair, "value", None))
+        if name is not None and value is not None:
+            values[name] = value
+    return values
+
+
+def __literal_value(element) -> str | None:
+    """Return the value of a literal element, or ``None`` for an expression."""
+    if not isinstance(element, Literal):
+        return None
+    value = element.value
+    if not isinstance(value, str):
+        return None
+    # A string literal keeps its quotes in the parse tree, a numeric or boolean
+    # literal has none.
+    if len(value) > 1 and value.startswith('"') and value.endswith('"'):
+        return value[1:-1]
+    return value
 
 
 def get_class_name(clazz: TypeDeclaration) -> str:

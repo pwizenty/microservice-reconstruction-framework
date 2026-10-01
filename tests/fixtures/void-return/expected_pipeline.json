@@ -32,6 +32,12 @@
                 {
                   "name": "DeleteMapping",
                   "values": {}
+                },
+                {
+                  "name": "Endpoint",
+                  "values": {
+                    "address": "/customers/{id}"
+                  }
                 }
               ],
               "name": "deleteCustomer",
@@ -52,6 +58,12 @@
                 {
                   "name": "PostMapping",
                   "values": {}
+                },
+                {
+                  "name": "Endpoint",
+                  "values": {
+                    "address": "/customers"
+                  }
                 }
               ],
               "name": "createCustomer",
@@ -72,6 +84,12 @@
                 {
                   "name": "GetMapping",
                   "values": {}
+                },
+                {
+                  "name": "Endpoint",
+                  "values": {
+                    "address": "/customers"
+                  }
                 }
               ],
               "name": "getCustomers",
