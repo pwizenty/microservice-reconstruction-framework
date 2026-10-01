@@ -1,64 +1,76 @@
-# Plan: reconstructing service-to-service communication security
+# Plan: a technology aspect for service-to-service communication
 
 Status: **proposed, awaiting review (Checkpoint 1)**
 
-A plugin that collects the facts needed to detect *Non-Secured
-Service-to-Service Communications* (Ponce et al., JSS 2022). The plugin collects
-facts only; whether a link is a smell is decided by the LEMMA validation in step
-3 of the pipeline.
+First step towards the security smell *Non-Secured Service-to-Service
+Communications* (Ponce et al., JSS 2022): reconstruct which transport a service
+uses when it calls another service, and mark it in the generated LEMMA service
+model as a technology aspect.
+
+Scope is deliberately one fact. Everything else the smell needs — the server's
+TLS and client authentication, the service mesh, gRPC, messaging, client
+certificates, weakened verification — is listed in §6 and left for later steps.
 
 ---
 
-## 1. Findings: how MRF works today
+## 1. What this step delivers
 
-### 1.1 Plugin contract
-
-`mrf/plugins/reconstruction_plugin.py` defines `Plugin`, an ABC with two
-abstract methods:
-
-```python
-class Plugin(ABC):
-    def file_types(self) -> list[str]: ...  # suffixes the plugin reads
-    def execute_reconstruction(self, source_files) -> Any: ...
+```diff
+  service models
+  @technology(javaWithSpring)
++ @javaWithSpring::_aspects.ServiceCommunicationTransport(transport = "plaintext")
+  public functional microservice com.lakesidemutual.customermanagement.CustomerManagement {
 ```
 
-`file_types()` is **advisory**. The framework does not filter by it: every
-plugin receives all source files and filters itself (`DockerPlugin` matches
-`COMPOSE_FILE_NAMES`, `SpringPlugin` passes its suffixes to `load_classes`).
-`execute_reconstruction` has no declared return type — each plugin returns
-whatever the handler expects of it.
+The aspect states what the reconstruction observed, not whether it is a smell.
+`transport` takes one of four values:
 
-### 1.2 Registration and discovery
-
-There is **no discovery**. A plugin is wired in by hand in three places:
-
-| Place | What has to be added |
+| Value | Meaning |
 |---|---|
-| `mrf/plugins/reconstruction_plugin.py` | a member of the `PluginType` enum |
-| `mrf/utilities/command_line.py` | the literal in `choices=["Java", "Docker", "Spring"]` |
-| `mrf/modules/reconstruction_handler.py` | an `if PluginType.X in self.plugins` branch in a phase method |
+| `plaintext` | at least one call to another service of the system over `http` |
+| `tls` | every such call uses `https` |
+| `mixed` | both occur |
+| `unresolved` | calls were found but no scheme could be determined |
 
-ADR-0002 (*Discover plugins via entry points*) is still **Proposed**, so the
-hand-wiring is the current contract. This plan does not change it; doing so is a
-separate decision.
+A service that calls no other service of the system gets no aspect at all.
 
-The CLI `choices` are case-sensitive and must match the `PluginType` **values**
-exactly.
+### Why this is a fact and not a smell decision
 
-### 1.3 Phase order and sharing data between plugins
+The task document rules out the plugin deciding the smell, and that still
+holds. `transport = plaintext` is an observation about the scheme of the
+outgoing calls. Deciding the smell additionally needs the callee's
+`clientAuth`, the mesh mode, and whether a client certificate is configured —
+none of which this step collects. The LEMMA validation keeps the decision, and
+this aspect is one of its inputs.
 
-`ReconstructionHandler.reconstruct_start` runs three hardcoded phases:
+`mixed` and `unresolved` exist so that the aggregation never has to guess. No
+field is named `insecure`, and nothing carries a severity.
 
-```
-__reconstruct_data(…)       JavaPlugin      -> reconstructed_data      (contexts)
-__reconstruct_service(…)    SpringPlugin    -> reconstructed_service   (microservices)
-                            JavaPlugin.reconstruct_dependencies(…)
-__reconstruct_operation(…)  DockerPlugin    -> reconstructed_operation (nodes)
-```
+---
 
-There is **no dependency mechanism**. A plugin reads another's results only
-because the handler hands them over explicitly. There is one precedent, and it
-is the pattern to follow:
+## 2. Findings from Phase 0 that shape the design
+
+Read from the code, not assumed.
+
+### 2.1 Plugin contract and registration
+
+`Plugin` (`mrf/plugins/reconstruction_plugin.py`) is an ABC with `file_types()`
+and `execute_reconstruction(source_files)`. `file_types()` is advisory — the
+framework passes every file to every plugin, which filters itself.
+
+There is no discovery. ADR-0002 (*entry points*) is still **Proposed**, so a
+plugin is wired in by hand in three places: the `PluginType` enum, the
+`choices=[…]` list in `mrf/utilities/command_line.py` (case-sensitive, must
+match the enum *values*), and a branch in a phase method of
+`ReconstructionHandler`.
+
+### 2.2 Phases and reading another plugin's results
+
+`reconstruct_start` runs three hardcoded phases: domain data (`JavaPlugin`),
+service (`SpringPlugin` + `JavaPlugin.reconstruct_dependencies`), operation
+(`DockerPlugin`). No dependency mechanism exists; a plugin sees another's
+results only because the handler hands them over. The one precedent is the
+pattern to copy:
 
 ```python
 plugin = DockerPlugin()
@@ -66,37 +78,10 @@ plugin.execute_reconstruction(source_files)  # what the files alone say
 nodes = plugin.assign_deployed_services(self.reconstructed_service)
 ```
 
-`DockerPlugin` keeps what it needs for the second step in instance state
-(`build_directories`, `defining_files`). A plugin that needs results of an
-earlier phase therefore splits into *read the files* and *resolve against what
-is now known*.
+`ReconstructionHandler` is a singleton with class-level state that leaks between
+runs and tests; `tests/test_golden.py` resets it with `reset_handler()`.
 
-`ReconstructionHandler` is a singleton whose state is class level, so it leaks
-between runs and tests (a known issue in `CLAUDE.md`). `tests/test_golden.py`
-works around it with `reset_handler()`.
-
-### 1.4 Data model and persistence
-
-Three viewpoints, three modules, three collections:
-
-| Module | Concepts | Collection |
-|---|---|---|
-| `mrf/modules/domain_data.py` | `Context`, `DataStructure`, `Field`, `ComplexType`, `PrimitiveType`, `ClassType` | `context` |
-| `mrf/modules/service.py` | `Microservice`, `Interface`, `Operation`, `Parameter`, `CommunicationType`, `ExchangePattern` | `microservice` |
-| `mrf/modules/operation.py` | `OperationNode`, `NodeType`, `DeployedService` | `operation` |
-
-Mapping layer: `mrf/repositories/<viewpoint>/…` defines an `R*` dataclass per
-concept and a `transform_*_for_database` function.
-`mrf/repositories/mongo_repository.py` has one `save_*` per viewpoint and writes
-`dataclasses.asdict(...)`, keyed on `qualified_name`:
-
-```python
-collection.replace_one(
-    {"qualified_name": document["qualified_name"]}, document, upsert=True
-)
-```
-
-Every concept carries meta-data through one shared mechanism:
+### 2.3 The meta-data mechanism fits this fact
 
 ```python
 @dataclass
@@ -105,351 +90,252 @@ class Data:
     values: dict[str, str] = field(default_factory=dict)
 ```
 
-It is attached to `Microservice`, `Interface`, `Operation`, `Parameter`,
+`Data` is attached to `Microservice`, `Interface`, `Operation`, `Parameter`,
 `OperationNode`, `DataStructure` and `Field`, persisted as `data`, and read on
 the LEMMA side as `List<MetaData>` with `Map<String, String> values`.
 
-**Concepts that do not exist**, and that this smell needs:
+`values` is flat, so it cannot hold a *list* of evidence records per fact. With
+**one evidence per call** — `file`, `line`, `snippet` as three keys of the same
+entry — it fits, and several calls are several `Data` entries with the same
+name. That is the whole reason this step needs **no new collection, no new
+module and no ADR for persistence**, where the full smell did.
 
-- **No Technology viewpoint.** The task assumes the viewpoints *Domain,
-  Service, Technology, Operation*. MRF has three: domain data, service,
-  operation. Technology facts are currently carried as `Data` meta-data on a
-  service-viewpoint element (the REST aspects and endpoints) or named in a
-  hand-written LEMMA technology model. There is no place of their own.
-- **No dependency between services.** `Microservice` has no "required
-  microservices". `OperationNode.depends_on` exists but is Compose
-  `depends_on`, a start-up order between containers, not a call.
-- **No endpoint/port/protocol concept.** A REST address is a `Data` entry named
-  `Endpoint` on an interface or operation (added for the REST technology work);
-  a port is a plain string in a container's `ServiceProperties`.
-- **No traceability mechanism.** `Microservice.origin_file` is the only link
-  back to source, one path per microservice, no line and no snippet. `Data`
-  cannot hold evidence: `values` is `dict[str, str]`, so neither a list of
-  evidence records nor a nested record fits it.
+### 2.4 The scheme does not need the operation phase
 
-### 1.5 Reference plugins
+Lakeside Mutual resolves its one cross-service call like this:
 
-- **Java** (`mrf/plugins/data/java/java_plugin.py`): parses with **ljavalang**
-  (a fork, imported as `javalang`), via `mrf/utilities/java_utils.py`
-  (`load_classes`, `parse_java_file`, `has_annotation`, `find_annotation`,
-  `get_annotation_values`, `resolve_complex_field`). `load_classes` skips a file
-  the parser rejects, with a warning.
-- **Spring** (`mrf/plugins/service/spring/spring_plugin.py`): walks the parsed
-  classes, matches annotations from `mrf/utilities/sping.py`.
-- **Docker** (`mrf/plugins/operation/docker/docker_plugin.py`): `yaml.safe_load`
-  on Compose files, line-wise reading of a Dockerfile, constants in
-  `mrf/utilities/docker.py`. It already reads `application.properties` for
-  `spring.application.name` and `server.port` (`__read_properties`).
+```java
+@FeignClient(name="customercore", url="${customercore.baseURL}", …)   // client
+@Value("${customercore.baseURL}") private String customerCoreBaseURL;  // client
+```
 
-Everything needed to read Java, YAML and properties files is therefore present.
-**No new third-party dependency is expected.**
+```properties
+customercore.baseURL=http://localhost:8110        # application.properties
+```
+```yaml
+CUSTOMERCORE_BASEURL=http://customer-core:8110    # docker-compose.yml
+```
 
-What ljavalang does **not** give is symbol or type resolution: the parse tree
-has no bean graph and no cross-file linking. Section 3.4 states the consequence.
+The Compose environment changes the **host**, not the **scheme**. Since this
+step only reports the scheme, `application*.properties`/`.yml` is sufficient and
+the plugin needs nothing from the operation phase. Compose and Kubernetes
+resolution becomes necessary only when the resolved URL and the target identity
+matter, which is a later step.
 
-### 1.6 Tests
+### 2.5 The LEMMA side needs two small additions
 
-- `tests/test_golden.py` — golden fixtures under `tests/fixtures/<system>/src/`,
-  compared with `deepdiff(..., ignore_order=True)` against `expected.json`
-  (plugins alone) and `expected_pipeline.json` (the whole handler). Fixtures are
-  auto-discovered by the presence of those files. Marked `@pytest.mark.golden`.
-- Unit tests per utility module (`tests/test_java_utils.py`, …).
-- `tests/test_mongo_repository.py` uses `mongomock`; no test touches a real
-  MongoDB.
-- Skill `add-golden-fixture` documents the rules: fixtures minimal, expected
-  output human-reviewed, never regenerated just to make a test pass.
+Checked in the code:
 
-### 1.7 Build setup
+- `de.fhdo.lemma.service.Microservice` **has** `getAspects()`.
+- `ServiceDslExtractor.generate(Microservice)` does **not** print them — the
+  same gap that `generate(Interface)` had before the REST work.
+- `LemmaServiceGenerator` calls `assignAspects` for interfaces, operations and
+  parameters, but **not** for the microservice.
 
-MRF is a plain Python package: `uv`, `pyproject.toml`, Python ≥ 3.12, `ruff`,
-`mypy`, `pytest`. No OSGi, no Eclipse plug-in project, nothing to declare twice.
-The gate is `ruff check`, `ruff format`, `mypy`, `pytest`.
-
-(The Eclipse/PDE concern in the task applies to the **LEMMA** repository, where
-`de.fhdo.lemma.reconstruction` is an OSGi bundle with `MANIFEST.MF` and
-`build.properties`. That is Phase 2 and out of scope here.)
-
-### 1.8 LEMMA side (read only)
-
-`de.fhdo.lemma.reconstruction/src/…/MongoDbRepository.xtend` reads exactly three
-collections by name — `context`, `microservice`, `operation` — and deserialises
-each document with Jackson into `Context`, `Microservice`, `OperationNode`.
-Field names are bound with `@JsonProperty`; unknown properties are ignored
-(`FAIL_ON_UNKNOWN_PROPERTIES, false`).
-
-Generators: `LemmaDomainGenerator`, `LemmaServiceGenerator`,
-`LemmaOperationGenerator`. `LemmaServiceGenerator` already maps `Data`
-meta-data onto a LEMMA technology model: `TechnologyTypes` and
-`TechnologyAspects` scan `models/technology/spring.technology` for the types and
-service aspects it declares, and only a declared name is emitted. That is the
-mechanism Phase 2 would extend — a new fact becomes an aspect in a technology
-model, and the generator emits it when the model declares it.
-
-**Consequence for the schema:** a *new collection* is invisible to the LEMMA
-side until a reader is added, which is backward compatible. *Changing the shape
-of `Data.values`* is not: `Map<String, String>` would fail to deserialise a
-nested value. So `Data` must stay as it is.
+The filtering mechanism needs no change at all: `TechnologyAspects` already
+reads a technology model for the aspects it declares, the join points it
+declares them for, and the properties they carry, and the generator emits only
+what the model declares. Declaring the aspect for `microservices` and naming the
+meta-datum after it is enough.
 
 ---
 
-## 2. Mapping the facts onto the model
+## 3. What gets reconstructed
 
-### 2.1 What fits an existing concept
+One `Data` entry per detected call, on the `Microservice` that makes it:
 
-| Fact (§4 of the task) | Existing concept | How |
-|---|---|---|
-| Service name of source/target | `Microservice.name`, `Data("ServiceProperties").values["springApplicationName"]`, `OperationNode` name and `Data("ComposeService").values["Name"]` | resolved against, not re-reconstructed |
-| Exposed port | `Data("ServiceProperties").values["serverPort"]` on a container | read as an input |
-| Mesh facts per service (§4.3) | `OperationNode.data` | one `Data("ServiceMesh")` entry per node, flat string values — fits `dict[str, str]` |
-
-### 2.2 What needs new concepts
-
-The server configuration (§4.1), the communication links (§4.2) and the
-evidence (§4.4) do not fit. Each is a list of records with several fields, and
-each record carries a list of evidence; `Data.values` is flat `str → str`.
-
-**Proposal: a fourth viewpoint module and a fourth collection.**
-
-```
-mrf/modules/communication.py
-    Evidence(file, line, artifact_type: ArtifactType, snippet)
-    ArtifactType          SOURCE | CONFIGURATION | DEPLOYMENT
-    ServerEndpoint(port, protocol: Protocol, tls_enabled, client_auth: ClientAuth,
-                   additional_plaintext_port, value_source: ValueSource,
-                   evidence: list[Evidence])
-    CommunicationLink(source, target, target_kind: TargetKind, channel: Channel,
-                      technology, scheme: Scheme, resolved_url, profile,
-                      profile_active, client_certificate_configured,
-                      verification_weakened, evidence: list[Evidence])
-    ServiceCommunication(qualified_name, name,
-                         server_endpoints: list[ServerEndpoint],
-                         outgoing_links: list[CommunicationLink],
-                         data: list[Data])
-
-mrf/repositories/communication/communication.py   R* classes + transform
-mrf/repositories/mongo_repository.py              save_service_communications(...)
-                                                  -> collection "communication"
+```python
+Data(
+    "ServiceCall",
+    {
+        "target": "customercore",  # as written in the code
+        "scheme": "http",  # http | https | UNRESOLVED
+        "technology": "Feign",  # Feign | RestTemplate | RestClient | WebClient
+        "property": "customercore.baseURL",  # the placeholder, if there was one
+        "resolvedUrl": "http://localhost:8110",  # or absent when UNRESOLVED
+        "file": "…/infrastructure/CustomerCoreClient.java",
+        "line": "20",
+        "snippet": '@FeignClient(name="customercore", url="${customercore.baseURL}")',
+        "artifactType": "SOURCE",
+    },
+)
 ```
 
-One document per service, keyed on `qualified_name` so `__save` upserts it like
-every other document. Enumerations are persisted by value, as
-`RExchangePattern`/`RCommunicationType` already do.
+and one aggregate entry that the LEMMA aspect is generated from:
 
-**Why a new collection rather than extending `microservice`:**
+```python
+Data("ServiceCommunicationTransport", {"transport": "plaintext"})
+```
 
-1. The facts span viewpoints. A link is Service, its TLS configuration is
-   Technology, the mesh is Operation. Hanging all of it on `microservice` would
-   put deployment facts into the service viewpoint.
-2. `Data.values` cannot carry evidence, and widening it to `dict[str, Any]`
-   would break the Jackson binding on the LEMMA side (§1.8).
-3. ADR-0008 set the precedent: the operation phase got concepts and a
-   collection of its own rather than being folded into an existing one.
-4. A new collection is additive. Nothing on the LEMMA side reads it until
-   Phase 2 adds a reader, so no existing behaviour changes.
+The aggregate is computed in MRF rather than in the generator so the generator
+stays a mapping and the rule lives in one place. It is an aggregation of the
+`scheme` values above, nothing more.
 
-**Mesh facts are the exception**: they are per node, flat, and belong to the
-operation viewpoint, where `OperationNode.data` already exists and the LEMMA
-operation generator already reads meta-data. Putting them there keeps the new
-collection to what genuinely needs it.
-
-### 2.3 ADR
-
-`CLAUDE.md` requires an ADR for changes to persistence or the model, and this
-adds both a fourth collection and a fourth module. **ADR-0009 "Reconstruct
-communication security facts in a fourth collection"** has to be drafted (skill
-`write-adr`) and will start as *Proposed*. The plan assumes that ADR; if it is
-rejected, the fallback is §2.2 option (i), encoding records into composite keys
-in `Data.values`, which I do not recommend — it makes the LEMMA side parse
-strings.
+Calls whose host is not one of the system's own services are recorded with
+`targetKind = EXTERNAL` on the `ServiceCall` entry and **excluded** from the
+aggregate — this smell is about internal traffic. Resolving "own service" uses
+the microservice names the service phase already produced, which is why the
+plugin receives them (§4.2).
 
 ---
 
-## 3. Implementation
+## 4. Implementation
 
-### 3.1 Structure
+### 4.1 Structure
 
 ```
-mrf/plugins/communication/
+mrf/plugins/service/communication/
     __init__.py
-    communication_plugin.py          CommunicationPlugin(Plugin)
+    communication_plugin.py       CommunicationPlugin(Plugin)
     detectors/
-        __init__.py                  DETECTORS registry
-        detector.py                  ClientDetector protocol
-        rest_template.py             RestTemplate, RestClient, WebClient
-        feign.py                     @FeignClient
-        grpc.py                      ManagedChannelBuilder, usePlaintext()
-        messaging.py                 RabbitMQ, Kafka, ActiveMQ
-    server_configuration.py          §4.1 from application*.properties/yml
-    mesh.py                          §4.3 from Kubernetes manifests
-    placeholders.py                  the resolution chain of §5
-    verification.py                  weakened-verification detection
-mrf/utilities/security.py            constants: annotation and property names
+        __init__.py               DETECTORS registry
+        detector.py               ClientDetector protocol
+        feign.py                  @FeignClient
+        rest_template.py          RestTemplate, RestClient, WebClient
+    placeholders.py               ${…} -> application*.properties / *.yml
+mrf/utilities/communication.py    annotation names, property keys, enumerations
 ```
 
-One detector per client technology behind a small protocol, as the task asks:
+Service viewpoint, because the facts attach to a microservice. One detector per
+client technology behind a protocol, so a technology is added as a module plus
+one registry entry:
 
 ```python
 class ClientDetector(Protocol):
     technology: str
-    channel: Channel
 
-    def detect(
-        self, clazz, unit, context: DetectionContext
-    ) -> list[CommunicationLink]: ...
+    def detect(self, clazz, unit, context: DetectionContext) -> list[ServiceCall]: ...
 ```
 
-Adding a technology is a new module plus one entry in `DETECTORS`.
+Parsing reuses what exists: `load_classes`, `has_annotation`, `find_annotation`,
+`get_annotation_values` from `mrf/utilities/java_utils.py`, and the
+properties reader of the Docker plugin for `application.properties`. YAML via
+`yaml.safe_load`, as `DockerPlugin` does. **No new dependency.**
 
-### 3.2 Wiring
+### 4.2 Wiring
 
 - `PluginType.COMMUNICATION = "Communication"`, added to the CLI `choices`.
-- A **fourth phase**, `__reconstruct_communication`, after the operation phase,
-  following the `assign_deployed_services` precedent:
+- Runs in the **service phase**, after `SpringPlugin`, because it attaches its
+  meta-data to the microservices that phase produced:
 
 ```python
-plugin = CommunicationPlugin()
-plugin.execute_reconstruction(source_files)  # facts from files
-ReconstructionHandler.reconstructed_communication = list(
-    plugin.resolve(self.reconstructed_service, self.reconstructed_operation)
-)
+if PluginType.COMMUNICATION in self.plugins:
+    plugin = CommunicationPlugin()
+    plugin.execute_reconstruction(source_files)
+    plugin.assign_to(self.reconstructed_service)  # attaches the Data entries
 ```
 
-It must run last: targets are resolved against the microservice names of the
-service phase and the Compose environment of the operation phase.
-`reconstruct_save` gains `save_service_communications(...)`, and
-`reset_handler()` in `tests/test_golden.py` the fourth list.
+Nothing else in the handler changes: the facts ride on the existing
+microservice documents, so `reconstruct_save` and the collections stay as they
+are. Selecting `Communication` without `Spring` reconstructs nothing and logs
+why, rather than guessing.
 
-Running `-p Communication` without `Spring`/`Docker` is allowed; targets then
-resolve to `EXTERNAL` or `UNRESOLVED`, and the plugin logs that at warning level
-rather than guessing.
+### 4.3 Extraction rules for this step
 
-### 3.3 Extraction rules
-
-Mostly as specified in §5 of the task. Three points worth settling now:
-
-**Spring relaxed binding.** Lakeside Mutual resolves
-`@Value("${customercore.baseURL}")` against `CUSTOMERCORE_BASEURL` in the
-Compose `environment`. Mapping an environment variable name to a property name
-(upper case, `.`/`-`/camel-case boundaries to `_`) has to be implemented
-explicitly; it is the only way case 2 of the fixture table resolves.
-
-**Precedence**, highest first: Compose `environment` / Kubernetes `env` →
-`env_file` / ConfigMap → `application-<profile>.properties|yml` →
-`application.properties|yml`. One link per profile, the profile named by
-`SPRING_PROFILES_ACTIVE` marked active.
-
-**Exclusions** (§5): `src/test/**`, `*Test`, `*IT`, WireMock/MockServer/
-Testcontainers, commented-out code, and the XML namespace hosts
-(`w3.org`, `springframework.org/schema`, `maven.apache.org`). Comments are
-dropped by the Java parser for annotations and string literals in code, but a
-URL in a properties file needs the `#`/`!` comment rule that
-`DockerPlugin.__read_properties` already applies.
-
-### 3.4 Honest limits of the static analysis
-
-These follow from ljavalang having no symbol resolution, and should be read
-before the fixture table is taken as a quality bar:
-
-1. **A link is anchored in one class.** The URL source (a `@FeignClient`
-   annotation, or a `@Value` field) and the call have to be in the same class.
-   Lakeside Mutual's `CustomerCoreRemoteProxy` and `CustomerCoreClient` are
-   exactly that shape, which is the common "remote proxy" pattern. A base URL
-   injected into a shared helper and used elsewhere resolves to `UNRESOLVED`.
-2. **`@ConfigurationProperties` is partial.** The prefix and the field name give
-   the property name; a value assembled at runtime does not.
-3. **Weakened verification is name-based.** `TrustAllStrategy`,
-   `NoopHostnameVerifier`, `InsecureTrustManagerFactory` and friends are
-   recognised by name. An `X509TrustManager` with an empty `checkServerTrusted`
-   is recognised by an empty method body in a class implementing that
-   interface — a custom verifier that returns `true` through a helper is not.
-4. **`targetKind`** is decided by matching the host against the known service
-   and node names; anything else is `EXTERNAL`. A target that is spelled
-   differently in code and in Compose (an alias) is `EXTERNAL` wrongly, so the
-   match is reported with its evidence for review.
-
-Every one of these produces `UNRESOLVED` or a recorded fact with evidence, never
-a guess (§5 rule 5).
-
-### 3.5 Determinism
-
-Collections sorted before they are returned: services by `qualified_name`, links
-by `(target, channel, profile, file, line)`, endpoints by `port`, evidence by
-`(file, line)`. The determinism test runs the plugin twice over a fixture and
-compares the serialised result, in the shape `tests/test_golden.py` already
-serialises models.
-
----
-
-## 4. Tests
-
-- One fixture per case of the task's table, under
-  `tests/fixtures/s2s-<case>/`, each two or three small services. Cases 7–10
-  (gRPC, messaging, Istio `STRICT`, Istio `PERMISSIVE`) have no counterpart in
-  Lakeside Mutual, so they are hand-written from the specification.
-- `expected.json` written by hand from the fixture, per the
-  `add-golden-fixture` skill, not generated from the new plugin.
-- The determinism test of §3.5.
-- Existing tests stay green. The plugin adds a phase and touches
-  `reconstruction_handler.py`, `reconstruction_plugin.py` and
-  `command_line.py`; no existing plugin changes, so the current fixtures should
-  not move. Should any `expected_pipeline.json` change, the diff gets reviewed
-  before it is accepted.
-
-### What Lakeside Mutual will and will not show
-
-Surveyed before writing this plan:
-
-| | Present |
+| Rule | Behaviour |
 |---|---|
-| Client call sites | RestTemplate ×5, RestClient ×2, `@FeignClient` ×2 |
-| Placeholder resolved via Compose | `customercore.baseURL` → `CUSTOMERCORE_BASEURL=http://customer-core:8110` |
-| Infrastructure target | `SPRING_BOOT_ADMIN_CLIENT_URL=http://spring-boot-admin:9000` |
-| `server.ssl` anywhere | **none** → every service `tlsEnabled=false`, `FRAMEWORK_DEFAULT` |
-| Kubernetes manifests | `kubernetes/manifests/*.yaml`, 9 files |
-| Istio / Linkerd / Consul | **none** → `meshType=NONE` |
-| gRPC, RabbitMQ, Kafka | **none** |
-| mTLS, trust-all, profiles with different URLs | **none** |
+| Literal URL in the annotation or call | scheme taken from it |
+| `${placeholder}` | looked up in `application.properties`, `application.yml`, then `application-<profile>.*`; first hit wins, profile recorded |
+| Resolution fails | `scheme = UNRESOLVED`, never a guess |
+| Discovery call (`@FeignClient` with a name and no URL, `@LoadBalanced`) | scheme from the code if present, else `UNRESOLVED` |
+| Excluded | `src/test/**`, `*Test`, `*IT`, WireMock/MockServer/Testcontainers, and the XML namespace hosts `w3.org`, `springframework.org/schema`, `maven.apache.org` |
+| Determinism | calls sorted by `(target, technology, file, line)` before they are attached |
 
-So the smoke test will produce a short, uniform table — plaintext HTTP
-throughout, no mesh — and that is the expected outcome, not a failure of the
-plugin. Roughly five of the fourteen cases are exercised by it; the other nine
-rest on the fixtures alone. `docs/s2s-lakeside-mutual-results.md` will say so
-explicitly, and will list every `UNRESOLVED` value with what would resolve it.
+**Limit, from the parser:** ljavalang gives a parse tree with no symbol
+resolution, so a call is only recognised when the URL source and the call site
+are in the same class — the "remote proxy" shape that Lakeside Mutual uses. A
+base URL injected into a shared helper and used elsewhere yields `UNRESOLVED`.
+This is a structural limit, not a matter of effort.
+
+### 4.4 LEMMA side
+
+Three additions, each mirroring the REST technology work:
+
+1. `models/technology/spring.technology`:
+
+```
+aspect ServiceCommunicationTransport<singleval> for microservices {
+    string transport <mandatory>;
+}
+```
+
+2. `LemmaServiceGenerator.generateMicroserviceFrom`: one call,
+   `assignAspects(microservice.aspects, reconstructedMicroservice.metaData, MICROSERVICES)`,
+   plus the `MICROSERVICES` constant. The `public`/`functional` meta-data
+   already on a microservice are not declared aspects, so the existing filter
+   drops them.
+
+3. `ServiceDslExtractor.generate(Microservice)`: print the aspects, exactly as
+   `generate(Interface)` now does.
+
+Verified end to end by compiling both bundles with the Xtend batch compiler and
+running `ReconstructionRegressionTest` headlessly.
 
 ---
 
-## 5. Proposed delivery, in reviewable steps
+## 5. Tests
 
-One branch per step, each cut from `dev` and merged by PR, each green on ruff,
-mypy and pytest:
+Fixtures under `tests/fixtures/`, each two services, written by hand per the
+`add-golden-fixture` skill — the six cases of the task's table that this step
+covers:
 
-| Step | Content |
+| # | Case | Expected |
+|---|---|---|
+| 1 | `RestTemplate` with a literal `http://` URL | `scheme=http`, `transport=plaintext` |
+| 2 | `@FeignClient` with `url="${…}"` resolved from `application.properties` | resolved URL, scheme, evidence in code and configuration |
+| 3 | `https://` throughout | `transport=tls` |
+| 11 | placeholder with no definition | `scheme=UNRESOLVED`, `transport=unresolved` |
+| 12 | `http://` only in test code and an XML schema URL | no call recorded, no aspect |
+| 14 | call to a third-party host | `targetKind=EXTERNAL`, excluded from the aggregate |
+| — | one `http` and one `https` call | `transport=mixed` |
+| — | determinism: two runs over one fixture | identical output |
+
+Existing tests must stay green. The plugin adds a phase branch and touches
+`reconstruction_plugin.py` and `command_line.py`; no existing plugin changes.
+`expected_pipeline.json` of the current fixtures should not move, because the
+new plugin is only run when selected — that is asserted rather than assumed.
+
+### Lakeside Mutual smoke test
+
+`docs/s2s-lakeside-mutual-results.md`, with the calls, their schemes and
+evidence. Expected from the survey: three services calling `customer-core`
+through `customercore.baseURL = http://localhost:8110`, one by Feign and two by
+`RestTemplate`, so `transport = plaintext` on each of them and no aspect on
+`CustomerCore` itself. Every `UNRESOLVED` listed with what would resolve it. No
+interpretation as a smell.
+
+---
+
+## 6. Deliberately left for later steps
+
+Each is listed so the reduced scope does not read as the whole picture. None of
+them requires changing what this step writes.
+
+| Fact | Needs |
 |---|---|
-| 1 | ADR-0009; `mrf/modules/communication.py`; `R*` classes; `save_service_communications`; `mongomock` test. No plugin yet. |
-| 2 | Plugin skeleton, wiring, the fourth phase, server configuration (§4.1) and the mesh (§4.3) — the parts that read configuration and deployment files. Fixtures 3, 4, 5, 9, 10. |
-| 3 | Client detectors: RestTemplate/RestClient/WebClient, Feign, placeholder resolution. Fixtures 1, 2, 11, 12, 13, 14. |
-| 4 | gRPC, messaging, weakened verification, client certificates. Fixtures 6, 7, 8. Determinism test. Lakeside Mutual smoke test and `docs/s2s-lakeside-mutual-results.md`. |
-
-Step 1 is the one to get right, because it fixes the schema the rest writes
-into. Steps 2–4 are additive.
+| Server `port`, `protocol`, `tlsEnabled`, `clientAuth`, `additionalPlaintextPort`, `valueSource` (§4.1 of the task) | a place for per-port records; `Data` can hold one entry per port, flat |
+| Mesh `meshType`, `sidecarInjected`, `peerAuthenticationMode`, `destinationRuleTlsMode` (§4.3) | reading `kubernetes/manifests/**`, which MRF does not do at all today; flat, fits `OperationNode.data` |
+| Resolved URL and target identity via Compose `environment`, `env_file`, Kubernetes `env`, ConfigMaps | the operation phase's results, so a fourth phase or a second step like `assign_deployed_services` |
+| Spring relaxed binding (`CUSTOMERCORE_BASEURL` → `customercore.baseURL`) | explicit name mapping; only needed once the host matters |
+| `clientCertificateConfigured`, `verificationWeakened` | SSL bundle and `SSLContext` analysis; name-based detection of `TrustAllStrategy`, `NoopHostnameVerifier`, `InsecureTrustManagerFactory` |
+| gRPC (`usePlaintext()`), messaging (`amqp://`, Kafka `security.protocol`) | further detectors; **absent from every sample system available** |
+| One link per profile with the active one marked | profile-specific files plus `SPRING_PROFILES_ACTIVE` from the deployment |
+| Multiple evidence records per fact | a nested structure, which `Data.values` cannot hold — this is where the fourth collection and an ADR become necessary |
 
 ---
 
-## 6. Open questions for the review
+## 7. Open questions for the review
 
-1. **Fourth collection and ADR-0009** — agreed, or should the facts be squeezed
-   into `Data` meta-data on the existing documents (§2.3 fallback)?
-2. **Plugin name.** `PluginType.COMMUNICATION` / `-p Communication`. The plugin
-   collects communication facts, so naming it after the smell would be wrong,
-   but "Communication" is broad. Alternative: `SECURITY`.
-3. **Is Kubernetes in scope for Phase 1?** The task asks for Kubernetes `env`,
-   ConfigMaps and mesh resources. MRF has no Kubernetes plugin at all today, so
-   this plugin would be the first thing to read `kubernetes/manifests/**`.
-   Lakeside Mutual has manifests but no mesh, so the mesh path would be covered
-   by fixtures only. It can be deferred to a later step without affecting the
-   schema.
-4. **Mesh facts on `OperationNode.data`** rather than in the new collection
-   (§2.2) — agreed?
-5. **Scope of step 4.** gRPC and messaging appear in none of your sample
-   systems. Worth building now, or specified and deferred until a system needs
-   them?
+1. **Aspect shape.** `ServiceCommunicationTransport(transport = "plaintext")`,
+   one aspect with a value — recommended, because it states `mixed` and
+   `unresolved` without ambiguity. The alternative is two marker aspects,
+   `PlaintextServiceCommunication` and `TlsServiceCommunication`, which read
+   more directly but say nothing useful when both apply.
+2. **Separate plugin, or an extension of `SpringPlugin`?** The facts come from
+   Spring annotations on classes `SpringPlugin` already parses, so folding them
+   in would avoid a new `PluginType`, a CLI entry and a handler branch. A
+   separate plugin keeps `SpringPlugin` from growing and is where the later
+   steps belong. Recommended: separate.
+3. **Does this step want an ADR?** No persistence or model change is involved,
+   so `CLAUDE.md` does not require one. Worth one anyway to record the
+   viewpoint decision and the aspect name, since later steps build on both.
