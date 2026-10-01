@@ -3,8 +3,9 @@
 Status: **proposed, awaiting review**
 
 When one service calls another's REST endpoint, say so in the generated LEMMA
-service model — as a `required microservices` entry, and where the endpoint can
-be identified, as `required interfaces`.
+service model, at the finest level that can be resolved: `required operations`
+for the endpoint itself, falling back to `required interfaces` and
+`required microservices`.
 
 ---
 
@@ -34,16 +35,20 @@ So the generated `CustomerManagement.services` should gain:
  @technology(javaWithSpring)
  @javaWithSpring::_aspects.ServiceCommunicationTransport(transport = "plaintext")
  public functional microservice com.lakesidemutual.customermanagement.CustomerManagement {
-+    required microservices { CustomerCore::com.lakesidemutual.customercore.CustomerCore }
++    required operations {
++        CustomerCore::…CustomerCore.CustomerInformationHolder.getCustomers,
++        CustomerCore::…CustomerCore.CustomerInformationHolder.getCustomer,
++        CustomerCore::…CustomerCore.CustomerInformationHolder.updateCustomer
++    }
 +
      @endpoints(javaWithSpring::_protocols.rest:"/notifications";)
      interface NotificationInformationHolder { … }
  }
 ```
 
-### Three levels of granularity, and why not all at once
+### Endpoint level is what LEMMA offers, and what this aims at
 
-The Service DSL offers all three, in this order inside the microservice body:
+The Service DSL has three levels, in this order inside the microservice body:
 
 ```
 required microservices { … }
@@ -51,16 +56,52 @@ required interfaces   { … }
 required operations   { … }
 ```
 
-`ServiceDslValidator.warnAlreadyRequired` warns when an interface is required
-*and* its microservice is required as well. So the levels are **alternatives,
-not layers**: emitting both for the same callee produces a warning on every
-link. The plan therefore emits the most precise level that could be resolved,
-and falls back to the microservice.
+`required operations` is the endpoint level: a reference to one operation of one
+interface of one microservice. For Lakeside Mutual's Feign client that resolves
+exactly (§3), so the generated `CustomerManagement.services` can state which
+three endpoints of `customer-core` it calls:
 
-Also relevant: `warnNoImplementedOperations` warns when a required microservice
-or interface defines no implemented operation. Our generated `CustomerCore` has
-implemented operations, so it stays quiet — but a callee whose every operation
-came out `noimpl` would warn, and that warning would be correct.
+```
+import microservices from "CustomerCore.services" as CustomerCore
+
+public functional microservice com.lakesidemutual.customermanagement.CustomerManagement {
+    required operations {
+        CustomerCore::com.lakesidemutual.customercore.CustomerCore.CustomerInformationHolder.getCustomers,
+        CustomerCore::com.lakesidemutual.customercore.CustomerCore.CustomerInformationHolder.getCustomer,
+        CustomerCore::com.lakesidemutual.customercore.CustomerCore.CustomerInformationHolder.updateCustomer
+    }
+    …
+}
+```
+
+An operation is named by `Operation.qualifiedNameParts`, which is its interface's
+qualified name plus its own: microservice, interface, operation.
+
+**The levels are alternatives, not layers.** `warnAlreadyRequired` fires for an
+interface whose microservice is also required, and for an operation whose
+interface or microservice is also required. Emitting two levels for one callee
+warns on every link. So the generator emits the **most precise level that
+resolves** and falls back: operation → interface → microservice.
+
+**What may be required at all** (`Microservice.canRequire`, consulted by the
+scope provider, so a reference that fails it does not resolve):
+
+| Level | Requirable when |
+|---|---|
+| Microservice | it is not the requiring service itself, and not `internal` |
+| Interface | not `noimpl`, not effectively `internal`, not one of the requiring service's own |
+| Operation | not effectively `noimpl`, not effectively `internal`, not one of the requiring service's own |
+
+`noimpl` is the one that bites: the reconstruction marks an operation `noimpl`
+when a parameter's type could not be resolved, and such an operation **cannot be
+required**. No operation of the current Lakeside Mutual models is `noimpl`, so
+all three above are requirable — but that was not true before the technology
+types resolved `ResponseEntity`, so the fallback has to handle it rather than
+assume it away.
+
+`warnNoImplementedOperations` additionally warns when a required microservice or
+interface defines no implemented operation. Our `CustomerCore` has them, so it
+stays quiet.
 
 ---
 
@@ -100,7 +141,7 @@ should report it:
 One line in `CommunicationPlugin.__known_targets` / `__to_data`, additive, no
 schema change.
 
-**What is missing for the interface level:** which endpoint is called. Section 4.
+**What is missing for the endpoint level:** which endpoint is called. Section 4.
 
 ---
 
@@ -114,9 +155,9 @@ Checked against Lakeside Mutual, and it resolves exactly:
 | `@GetMapping("/customers/{ids}")` | base `/customers` + `/{ids}` → `getCustomer` |
 | `@PutMapping("/customers/{customerId}")` | base `/customers` + `/{customerId}` → `updateCustomer` |
 
-All three land in one interface, so
-`required interfaces { CustomerCore::…CustomerCore.CustomerInformationHolder }`
-is derivable, and `required operations` would be too.
+Each one identifies a single operation of the callee, which is the endpoint
+level. All three happen to land in one interface, so the interface level is
+derivable from the same match as a fallback.
 
 **The rule:** concatenate the callee's interface endpoint address with its
 operation's address, normalise both sides, and match on the HTTP verb and the
@@ -150,7 +191,7 @@ service at a time and should not start resolving across them.
 `targetKind` is `SERVICE`. `__known_targets` already maps a normalised name to
 `microservice.name`; it becomes a map to the microservice itself, or to a pair.
 
-### 4.2 The called endpoint (interface level)
+### 4.2 The called endpoint (endpoint level)
 
 A new detector output: per call, the endpoints the caller declares it will hit.
 
@@ -283,8 +324,10 @@ callee falls back.
 - **A call the communication plugin does not find produces no dependency.** The
   Spring Boot Admin registration, which lives only in `docker-compose.yml`, is
   the known example.
-- **`required operations` is left out.** It is one step beyond `required
-  interfaces`, the same matching gets it, and nothing downstream asks for it yet.
+- **A `noimpl` operation cannot be required**, so a callee whose operation could
+  not be fully typed drops that link to the interface or the microservice level.
+  None of Lakeside Mutual's are `noimpl` today; before the technology types
+  resolved `ResponseEntity`, one was.
 - **Transitive dependencies are not inferred.** Only calls that were found.
 - **A cyclic dependency** would be emitted as found. Two service models importing
   each other is legal in LEMMA; if the editor disagrees, that is worth knowing
@@ -298,7 +341,7 @@ callee falls back.
 |---|---|
 | 1 | MRF: `targetQualifiedName` on a `SERVICE` call. LEMMA: microservices import, `requiredMicroservices`, extractor printing the three `required` blocks. **Service level, end to end.** |
 | 2 | MRF: `ServiceCallEndpoint` from a Feign client's methods, with a fixture. |
-| 3 | LEMMA: the matching rule, `requiredInterfaces` where it resolves, fallback to the microservice. Expected models of `lakeside-mutual` updated. |
+| 3 | LEMMA: the matching rule, then `requiredOperations` where an endpoint resolves, `requiredInterfaces` where only the interface does, `requiredMicroservices` otherwise. Expected models of `lakeside-mutual` updated. |
 
 Step 1 is worth having on its own: it is small, it needs no matching, and it
 produces the shape the hand-written reference model uses.
@@ -307,10 +350,10 @@ produces the shape the hand-written reference model uses.
 
 ## 9. Open questions
 
-1. **Interface or microservice level as the goal?** The hand-written reference
-   model uses `required microservices` only, even though its author knew the
-   endpoints. If that is the intended fidelity, steps 2 and 3 are unnecessary
-   and the whole thing is step 1.
+1. **Is step 1 worth shipping on its own**, or should the first visible output
+   already be the endpoint level? Step 1 is small and produces the shape the
+   hand-written reference model uses, but it states less than the sources give,
+   and the three `RestTemplate` links never get beyond it anyway.
 2. **The Feign client as an interface of the caller.** The reference model also
    turns `CustomerCoreClient` into `interface customerCoreClient { … }` on the
    *calling* service — a client-side contract, which our reconstruction does not
