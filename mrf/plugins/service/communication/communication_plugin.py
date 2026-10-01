@@ -33,19 +33,24 @@ from mrf.utilities.communication import (
     FILE,
     LINE,
     LOCAL_HOSTS,
+    METHOD,
+    PATH,
     PROFILE,
     PROPERTY,
     RESOLVED_URL,
     SCHEME,
     SERVICE_CALL,
+    SERVICE_CALL_ENDPOINT,
     SERVICE_COMMUNICATION_TRANSPORT,
     SNIPPET,
     TARGET,
     TARGET_KIND,
+    TARGET_QUALIFIED_NAME,
     TECHNOLOGY,
     TEST_CLASS_SUFFIXES,
     TEST_PATH_PARTS,
     TRANSPORT,
+    VERB,
     Scheme,
     TargetKind,
     Transport,
@@ -146,10 +151,13 @@ class CommunicationPlugin(Plugin):
 
             internal: list[Scheme] = []
             for call in calls:
-                kind, target = self.__resolve_target(call, targets)
-                microservice.data.append(self.__to_data(call, kind, target))
+                kind, target, called = self.__resolve_target(call, targets)
+                microservice.data.append(self.__to_data(call, kind, target, called))
                 if kind is not TargetKind.EXTERNAL:
                     internal.append(call.scheme)
+                    microservice.data.extend(
+                        self.__to_endpoint_data(call, target, called)
+                    )
 
             if internal:
                 transport = Data(SERVICE_COMMUNICATION_TRANSPORT)
@@ -158,7 +166,9 @@ class CommunicationPlugin(Plugin):
 
         return microservices
 
-    def __known_targets(self, microservices: list[Microservice]) -> dict[str, str]:
+    def __known_targets(
+        self, microservices: list[Microservice]
+    ) -> dict[str, Microservice]:
         """Collect the names and ports the system's own services answer under.
 
         A client addresses a service by its name - a Compose service name, an
@@ -166,24 +176,22 @@ class CommunicationPlugin(Plugin):
         port of the local machine. Both are collected so a target can be told
         from a third party.
         """
-        targets: dict[str, str] = {}
+        targets: dict[str, Microservice] = {}
         for microservice in microservices:
             module = module_of(microservice.origin_file)
-            targets[self.__normalise(microservice.name)] = microservice.name
+            targets[self.__normalise(microservice.name)] = microservice
             configuration = self.configurations.get(module or "")
             if configuration is None:
                 continue
             if configuration.application_name is not None:
-                targets[self.__normalise(configuration.application_name)] = (
-                    microservice.name
-                )
+                targets[self.__normalise(configuration.application_name)] = microservice
             if configuration.server_port is not None:
-                targets[f"port:{configuration.server_port}"] = microservice.name
+                targets[f"port:{configuration.server_port}"] = microservice
         return targets
 
     def __resolve_target(
-        self, call: ServiceCall, targets: dict[str, str]
-    ) -> tuple[TargetKind, str]:
+        self, call: ServiceCall, targets: dict[str, Microservice]
+    ) -> tuple[TargetKind, str, Microservice | None]:
         """Decide what a call addresses, and name it.
 
         A target that is one of the system's own services is reported under the
@@ -196,11 +204,12 @@ class CommunicationPlugin(Plugin):
             targets: Names and ports the system's own services answer under
 
         Returns:
-            The kind of the target and the name to report it under
+            The kind of the target, the name to report it under, and the
+            microservice it is, when it is one of the system's own
         """
         known = targets.get(self.__normalise(call.target))
         if known is not None:
-            return TargetKind.SERVICE, known
+            return TargetKind.SERVICE, known.name, known
 
         if call.target.lower() in LOCAL_HOSTS:
             # The service addresses the machine itself, as Lakeside Mutual's
@@ -209,12 +218,18 @@ class CommunicationPlugin(Plugin):
             if call.port is not None:
                 answering = targets.get(f"port:{call.port}")
                 if answering is not None:
-                    return TargetKind.SERVICE, answering
-            return TargetKind.EXTERNAL, self.__local_name(call)
+                    return TargetKind.SERVICE, answering.name, answering
+            return TargetKind.EXTERNAL, self.__local_name(call), None
 
-        return TargetKind.EXTERNAL, call.target
+        return TargetKind.EXTERNAL, call.target, None
 
-    def __to_data(self, call: ServiceCall, kind: TargetKind, target: str) -> Data:
+    def __to_data(
+        self,
+        call: ServiceCall,
+        kind: TargetKind,
+        target: str,
+        called: Microservice | None,
+    ) -> Data:
         values = {
             TARGET: target,
             TARGET_KIND: kind.value,
@@ -231,9 +246,43 @@ class CommunicationPlugin(Plugin):
             values[RESOLVED_URL] = call.resolved_url
         if call.profile is not None:
             values[PROFILE] = call.profile
+        if called is not None:
+            # The qualified name, because a reference to the callee in a LEMMA
+            # model is qualified and the generator sees one service at a time.
+            values[TARGET_QUALIFIED_NAME] = called.qualified_name
 
         data = Data(SERVICE_CALL)
         data.values = values
+        return data
+
+    def __to_endpoint_data(
+        self, call: ServiceCall, target: str, called: Microservice | None
+    ) -> list[Data]:
+        """Report the endpoints of the callee a client declares it addresses.
+
+        Only for a target that is a service of the system: an endpoint of a third
+        party is of no use to a consumer that wants to know what the system
+        depends on, and nothing reconstructed describes it.
+        """
+        if called is None:
+            return []
+
+        data: list[Data] = []
+        for endpoint in call.endpoints:
+            entry = Data(SERVICE_CALL_ENDPOINT)
+            entry.values = {
+                TARGET: target,
+                TARGET_QUALIFIED_NAME: called.qualified_name,
+                VERB: endpoint.verb,
+                PATH: endpoint.path,
+                METHOD: endpoint.method,
+                TECHNOLOGY: call.technology,
+                FILE: endpoint.evidence.file,
+                LINE: str(endpoint.evidence.line),
+                ARTIFACT_TYPE: endpoint.evidence.artifact_type.value,
+                SNIPPET: endpoint.evidence.snippet,
+            }
+            data.append(entry)
         return data
 
     def __local_name(self, call: ServiceCall) -> str:

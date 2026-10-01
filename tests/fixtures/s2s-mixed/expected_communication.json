@@ -1,11 +1,13 @@
 {
   "Alpha": {
     "transport": null,
-    "calls": []
+    "calls": [],
+    "endpoints": []
   },
   "Beta": {
     "transport": null,
-    "calls": []
+    "calls": [],
+    "endpoints": []
   },
   "Hub": {
     "transport": "mixed",
@@ -20,6 +22,7 @@
         "snippet": "@Value(\"${alpha.baseURL}\")",
         "target": "Alpha",
         "targetKind": "SERVICE",
+        "targetQualifiedName": "com.example.alpha.Alpha",
         "technology": "RestTemplate"
       },
       {
@@ -32,8 +35,10 @@
         "snippet": "@Value(\"${beta.baseURL}\")",
         "target": "Beta",
         "targetKind": "SERVICE",
+        "targetQualifiedName": "com.example.beta.Beta",
         "technology": "RestTemplate"
       }
-    ]
+    ],
+    "endpoints": []
   }
 }

@@ -15,6 +15,7 @@ import pathlib
 import pytest
 from deepdiff import DeepDiff
 from mrf.modules.reconstruction_handler import ReconstructionHandler
+from mrf.plugins.common.spring_mapping import find_mapping
 from mrf.plugins.reconstruction_plugin import PluginType
 from mrf.plugins.service.communication.configuration import (
     is_placeholder,
@@ -24,9 +25,12 @@ from mrf.plugins.service.communication.configuration import (
 from mrf.plugins.service.communication.urls import is_schema_url
 from mrf.utilities.communication import (
     SERVICE_CALL,
+    SERVICE_CALL_ENDPOINT,
     SERVICE_COMMUNICATION_TRANSPORT,
     TRANSPORT,
 )
+from mrf.utilities.java_utils import get_class_from_tree, parse_java_file
+from mrf.utilities.sping import REST_OPERATIONS
 
 from tests.test_golden import load_source_files, reset_handler
 
@@ -64,6 +68,11 @@ def reconstruct_communication(fixture: pathlib.Path) -> dict:
                 dict(sorted(data.values.items()))
                 for data in microservice.data
                 if data.name == SERVICE_CALL
+            ],
+            "endpoints": [
+                dict(sorted(data.values.items()))
+                for data in microservice.data
+                if data.name == SERVICE_CALL_ENDPOINT
             ],
         }
     return dict(sorted(services.items()))
@@ -155,3 +164,62 @@ def test_module_of_a_resource():
 
 def test_module_of_a_file_outside_a_module():
     assert module_of("docker-compose.yml") is None
+
+
+MAPPING_SOURCE = """
+package com.example;
+
+@FeignClient(name = "backend", url = "${backend.baseURL}")
+@RequestMapping("/api")
+public interface BackendClient {
+    @GetMapping(value = "/items")
+    String getItems();
+
+    @GetMapping
+    String getRoot();
+
+    @PutMapping(path = "/items/{id}")
+    String putItem(String id);
+
+    String unmapped();
+}
+"""
+
+
+def mapping_of(method_name: str):
+    """Return (annotation name, path) for a method of ``MAPPING_SOURCE``.
+
+    ``find_mapping`` hands back the annotation itself, because a fact read from
+    it cites its line; the tests only care about its name and the path.
+    """
+    clazz = get_class_from_tree(parse_java_file(MAPPING_SOURCE))
+    if method_name == "interface":
+        mapping = find_mapping(clazz.annotations, ["RequestMapping"])
+    else:
+        method = next(m for m in clazz.methods if m.name == method_name)
+        mapping = find_mapping(method.annotations, REST_OPERATIONS)
+    if mapping is None:
+        return None
+    annotation, path = mapping
+    return annotation.name, path
+
+
+def test_find_mapping_reads_the_base_path_of_the_declaration():
+    assert mapping_of("interface") == ("RequestMapping", "/api")
+
+
+def test_find_mapping_reads_a_verb_and_a_path():
+    assert mapping_of("getItems") == ("GetMapping", "/items")
+
+
+def test_find_mapping_reads_the_path_element_as_well_as_value():
+    assert mapping_of("putItem") == ("PutMapping", "/items/{id}")
+
+
+def test_find_mapping_reports_a_verb_without_a_path():
+    """A bare @GetMapping addresses the path of its declaration."""
+    assert mapping_of("getRoot") == ("GetMapping", None)
+
+
+def test_find_mapping_of_a_method_without_one():
+    assert mapping_of("unmapped") is None

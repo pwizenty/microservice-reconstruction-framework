@@ -34,6 +34,24 @@ class Evidence:
 
 
 @dataclass
+class CalledEndpoint:
+    """One endpoint of another service that a client declares it addresses.
+
+    Attributes:
+        verb: Mapping annotation the client states, which is the HTTP verb
+        path: Path the client addresses, the client's base path joined with the
+            path of the method
+        method: Name of the method that addresses it, for the evidence
+        evidence: Where it was read
+    """
+
+    verb: str
+    path: str
+    method: str
+    evidence: Evidence
+
+
+@dataclass
 class ServiceCall:
     """A call to another service, as the sources state it.
 
@@ -51,6 +69,9 @@ class ServiceCall:
         property_name: Property the address came from, for a placeholder
         resolved_url: Address the placeholder resolved to
         profile: Spring profile the address was resolved for
+        endpoints: Endpoints of the target the client declares it addresses.
+            Empty when the technology does not state them, which is the case for
+            every client that assembles its paths in the call expression.
     """
 
     target: str
@@ -61,6 +82,7 @@ class ServiceCall:
     property_name: str | None = None
     resolved_url: str | None = None
     profile: str | None = None
+    endpoints: list[CalledEndpoint] = field(default_factory=list)
 
 
 @dataclass

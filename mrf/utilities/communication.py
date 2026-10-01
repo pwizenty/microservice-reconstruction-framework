@@ -12,6 +12,14 @@ from enum import Enum
 SERVICE_CALL = "ServiceCall"
 """Meta-data name of a single detected call to another service."""
 
+SERVICE_CALL_ENDPOINT = "ServiceCallEndpoint"
+"""Meta-data name of one endpoint of another service that a client declares.
+
+Separate from :data:`SERVICE_CALL`, which reports the call and its transport: a
+client may address several endpoints of the same service, and each is a
+dependency of its own.
+"""
+
 SERVICE_COMMUNICATION_TRANSPORT = "ServiceCommunicationTransport"
 """Meta-data name of the transport a service uses for its calls.
 
@@ -32,6 +40,10 @@ LINE = "line"
 SNIPPET = "snippet"
 ARTIFACT_TYPE = "artifactType"
 TRANSPORT = "transport"
+TARGET_QUALIFIED_NAME = "targetQualifiedName"
+VERB = "verb"
+PATH = "path"
+METHOD = "method"
 
 SNIPPET_LENGTH = 120
 """Characters of a line kept as the evidence of a fact."""

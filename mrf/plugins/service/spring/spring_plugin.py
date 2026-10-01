@@ -32,6 +32,7 @@ from mrf.modules.service import (
     Parameter,
 )
 from mrf.plugins.common.common_plugin import Data, JavaClassArtifact
+from mrf.plugins.common.spring_mapping import find_mapping
 from mrf.plugins.reconstruction_plugin import Plugin
 from mrf.utilities.command_line import SourceFile
 from mrf.utilities.java_utils import (
@@ -40,7 +41,6 @@ from mrf.utilities.java_utils import (
     TECHNOLOGY_SPRING_TYPES,
     VOID_TYPES,
     adjust_qualified_name,
-    find_annotation,
     get_annotation_values,
     get_class_from_tree,
     get_class_name,
@@ -57,7 +57,6 @@ from mrf.utilities.sping import (
     ENDPOINT_ADDRESS,
     INFRASTRUCTURE_ANNOTATIONS,
     INFRASTRUCTURE_TECHNOLOGIES,
-    MAPPING_PATH_ELEMENTS,
     OPERATION_ANNOTATIONS,
     PARAMETER_ANNOTATIONS,
     REQUEST_MAPPING,
@@ -258,15 +257,11 @@ class SpringPlugin(Plugin):
             Data | None: The endpoint, or ``None`` when none of the annotations
                 is there or holds a path, as for a bare ``@GetMapping``
         """
-        annotation = find_annotation(annotations, names)
-        if annotation is None:
+        mapping = find_mapping(annotations, names)
+        if mapping is None:
             return None
 
-        values = get_annotation_values(annotation)
-        address = next(
-            (values[element] for element in MAPPING_PATH_ELEMENTS if element in values),
-            None,
-        )
+        _, address = mapping
         if not address:
             return None
 
