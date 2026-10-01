@@ -1,0 +1,39 @@
+{
+  "Alpha": {
+    "transport": null,
+    "calls": []
+  },
+  "Beta": {
+    "transport": null,
+    "calls": []
+  },
+  "Hub": {
+    "transport": "mixed",
+    "calls": [
+      {
+        "artifactType": "SOURCE",
+        "file": "src/hub/src/main/java/com/example/hub/Clients.java",
+        "line": "9",
+        "property": "alpha.baseURL",
+        "resolvedUrl": "http://alpha:8081",
+        "scheme": "http",
+        "snippet": "@Value(\"${alpha.baseURL}\")",
+        "target": "Alpha",
+        "targetKind": "SERVICE",
+        "technology": "RestTemplate"
+      },
+      {
+        "artifactType": "SOURCE",
+        "file": "src/hub/src/main/java/com/example/hub/Clients.java",
+        "line": "12",
+        "property": "beta.baseURL",
+        "resolvedUrl": "https://beta:8443",
+        "scheme": "https",
+        "snippet": "@Value(\"${beta.baseURL}\")",
+        "target": "Beta",
+        "targetKind": "SERVICE",
+        "technology": "RestTemplate"
+      }
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "Service": {
+    "transport": null,
+    "calls": [
+      {
+        "artifactType": "SOURCE",
+        "file": "src/service/src/main/java/com/example/service/ExternalProxy.java",
+        "line": "12",
+        "property": "exchange.rates.url",
+        "resolvedUrl": "https://api.exchangerate.host",
+        "scheme": "https",
+        "snippet": "@Value(\"${exchange.rates.url}\")",
+        "target": "api.exchangerate.host",
+        "targetKind": "EXTERNAL",
+        "technology": "RestTemplate"
+      }
+    ]
+  }
+}

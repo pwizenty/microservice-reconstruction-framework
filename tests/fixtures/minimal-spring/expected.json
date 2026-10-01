@@ -21,6 +21,12 @@
                 {
                   "name": "GetMapping",
                   "values": {}
+                },
+                {
+                  "name": "Endpoint",
+                  "values": {
+                    "address": "/customers"
+                  }
                 }
               ],
               "name": "getCustomers",

@@ -13,6 +13,9 @@ from mrf.modules.service import Microservice
 from mrf.plugins.data.java.java_plugin import JavaPlugin
 from mrf.plugins.operation.docker.docker_plugin import DockerPlugin
 from mrf.plugins.reconstruction_plugin import PluginType
+from mrf.plugins.service.communication.communication_plugin import (
+    CommunicationPlugin,
+)
 from mrf.plugins.service.spring.spring_plugin import SpringPlugin
 from mrf.repositories.mongo_repository import (
     save_contexts,
@@ -84,6 +87,13 @@ class ReconstructionHandler:
             ReconstructionHandler.reconstructed_data = self.__merge_contexts(
                 self.reconstructed_data, contexts
             )
+
+        if PluginType.COMMUNICATION in self.plugins:
+            # The calls of a service are meta-data on the microservice that
+            # makes them, so this runs once the service phase has found them.
+            plugin = CommunicationPlugin()
+            plugin.execute_reconstruction(source_files)
+            plugin.assign_to(self.reconstructed_service)
 
     def __reconstruct_operation(self, source_files: list[SourceFile]) -> None:
         if PluginType.DOCKER in self.plugins:

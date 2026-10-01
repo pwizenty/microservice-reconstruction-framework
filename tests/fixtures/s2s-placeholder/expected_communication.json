@@ -1,0 +1,23 @@
+{
+  "Backend": {
+    "transport": null,
+    "calls": []
+  },
+  "Gateway": {
+    "transport": "tls",
+    "calls": [
+      {
+        "artifactType": "SOURCE",
+        "file": "src/gateway/src/main/java/com/example/gateway/BackendClient.java",
+        "line": "6",
+        "property": "backend.baseURL",
+        "resolvedUrl": "https://backend:8443",
+        "scheme": "https",
+        "snippet": "@FeignClient(name = \"backend\", url = \"${backend.baseURL}\")",
+        "target": "Backend",
+        "targetKind": "SERVICE",
+        "technology": "Feign"
+      }
+    ]
+  }
+}

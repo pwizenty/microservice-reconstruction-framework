@@ -40,6 +40,8 @@ from mrf.utilities.java_utils import (
     TECHNOLOGY_SPRING_TYPES,
     VOID_TYPES,
     adjust_qualified_name,
+    find_annotation,
+    get_annotation_values,
     get_class_from_tree,
     get_class_name,
     get_qualified_class_name,
@@ -51,8 +53,14 @@ from mrf.utilities.java_utils import (
 from mrf.utilities.sping import (
     APPLICATION_CLASS,
     CONTROLLER_CLASS,
+    ENDPOINT,
+    ENDPOINT_ADDRESS,
     INFRASTRUCTURE_ANNOTATIONS,
     INFRASTRUCTURE_TECHNOLOGIES,
+    MAPPING_PATH_ELEMENTS,
+    OPERATION_ANNOTATIONS,
+    PARAMETER_ANNOTATIONS,
+    REQUEST_MAPPING,
     REST_CONTROLLER,
     REST_OPERATIONS,
     SPRING_BOOT_APPLICATION,
@@ -157,6 +165,12 @@ class SpringPlugin(Plugin):
                 )
             )
 
+            # The path of the controller is the endpoint all of its operations
+            # are addressed below.
+            endpoint = self.__reconstruct_endpoint(clazz.annotations, [REQUEST_MAPPING])
+            if endpoint is not None:
+                interface.data.append(endpoint)
+
             # Reconstruct Operations
 
             for method in clazz.methods:
@@ -188,19 +202,77 @@ class SpringPlugin(Plugin):
         return operation
 
     def __handle_annotations(self, annotations: list[Annotation]) -> list[Data]:
+        """Reconstruct the technology information of an operation.
+
+        The annotation that makes the method an operation is reported under its
+        own name, together with the further annotations of the operation the
+        technology model declares. Its path is no annotation but an endpoint,
+        so it is reported separately, see :func:`__reconstruct_endpoint`.
+
+        Args:
+            annotations ([Annotation]): Annotations of the method
+
+        Returns:
+            [Data]: Meta-data of the operation
+        """
         data: list[Data] = []
         for annotation in annotations:
             annotation_data = self.__handle_annotation(annotation)
             if annotation_data is not None:
                 data.append(annotation_data)
+
+        endpoint = self.__reconstruct_endpoint(
+            annotations, [*REST_OPERATIONS, REQUEST_MAPPING]
+        )
+        if endpoint is not None:
+            data.append(endpoint)
         return data
 
     def __handle_annotation(self, annotation: Annotation) -> Data | None:
         name = annotation.name
         if name in REST_OPERATIONS:
+            # A mapping annotation is declared as an aspect without properties,
+            # so its elements - the path - do not belong to it.
+            return Data(name)
+        if name in OPERATION_ANNOTATIONS:
             data = Data(name)
+            data.values = get_annotation_values(annotation)
             return data
         return None
+
+    def __reconstruct_endpoint(
+        self, annotations: list[Annotation], names: list[str]
+    ) -> Data | None:
+        """Reconstruct the endpoint one of the given annotations addresses.
+
+        Spring writes the path of a controller or of a method into the mapping
+        annotation, and LEMMA writes it as the address of an endpoint. Both
+        read an address relative to the element above it, so the path is
+        carried over unchanged.
+
+        Args:
+            annotations ([Annotation]): Annotations of the class or method
+            names ([str]): Names of the annotations that may hold a path
+
+        Returns:
+            Data | None: The endpoint, or ``None`` when none of the annotations
+                is there or holds a path, as for a bare ``@GetMapping``
+        """
+        annotation = find_annotation(annotations, names)
+        if annotation is None:
+            return None
+
+        values = get_annotation_values(annotation)
+        address = next(
+            (values[element] for element in MAPPING_PATH_ELEMENTS if element in values),
+            None,
+        )
+        if not address:
+            return None
+
+        endpoint = Data(ENDPOINT)
+        endpoint.values = {ENDPOINT_ADDRESS: address}
+        return endpoint
 
     def __handle_parameters(
         self, formal_parameters: list[FormalParameter], unit: CompilationUnit
@@ -219,7 +291,35 @@ class SpringPlugin(Plugin):
         parameter_type = formal_parameter.type
         type = self.__handle_parameter_type(parameter_type, unit)
         parameter = Parameter(name, com_type, exch_pat, type)
+        parameter.data.extend(
+            self.__handle_parameter_annotations(formal_parameter.annotations)
+        )
         return parameter
+
+    def __handle_parameter_annotations(
+        self, annotations: list[Annotation]
+    ) -> list[Data]:
+        """Reconstruct the technology information of a parameter.
+
+        Only the annotations the technology model declares as aspects for a
+        parameter are carried over. Spring's controllers also carry the
+        annotations of an OpenAPI description, which no aspect of the model
+        declares and which say nothing about the architecture.
+
+        Args:
+            annotations ([Annotation]): Annotations of the formal parameter
+
+        Returns:
+            [Data]: Meta-data of the parameter
+        """
+        data: list[Data] = []
+        for annotation in annotations:
+            if annotation.name not in PARAMETER_ANNOTATIONS:
+                continue
+            annotation_data = Data(annotation.name)
+            annotation_data.values = get_annotation_values(annotation)
+            data.append(annotation_data)
+        return data
 
     def __handle_return_type(
         self, reference_type: ReferenceType | None, unit: CompilationUnit

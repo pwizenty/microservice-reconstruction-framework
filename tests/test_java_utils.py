@@ -10,6 +10,7 @@ from mrf.utilities.java_utils import (
     NoJavaDeclrationException,
     adjust_name,
     adjust_qualified_name,
+    get_annotation_values,
     get_class_from_tree,
     get_class_name,
     get_qualified_class_name,
@@ -144,3 +145,69 @@ def test_load_classes_skips_a_file_the_parser_cannot_read(caplog):
     ]
     assert "src/com/example/DataLoader.java" in caplog.text
     assert "the reconstruction is incomplete" in caplog.text
+
+
+ANNOTATED_SOURCE = """
+package com.example;
+
+@RequestMapping("/customers")
+public class CustomerController {
+    @GetMapping
+    public void marker() {}
+
+    @GetMapping(value = "/{id}")
+    public void named() {}
+
+    @RequestParam(value = "filter", required = false, defaultValue = "")
+    public void several() {}
+
+    @RequestMapping(method = RequestMethod.GET)
+    public void expression() {}
+
+    @Port(portNumber = 8080)
+    public void numeric() {}
+}
+"""
+
+
+def annotation_of(method_name: str):
+    """Return the first annotation of a method of ``ANNOTATED_SOURCE``."""
+    clazz = get_class_from_tree(parse_java_file(ANNOTATED_SOURCE))
+    if method_name == "class":
+        return clazz.annotations[0]
+    method = next(m for m in clazz.methods if m.name == method_name)
+    return method.annotations[0]
+
+
+def test_annotation_values_of_a_marker_annotation_are_empty():
+    assert get_annotation_values(annotation_of("marker")) == {}
+
+
+def test_annotation_values_report_an_unnamed_element_as_value():
+    """``@RequestMapping("/customers")`` is shorthand for ``value = …``."""
+    assert get_annotation_values(annotation_of("class")) == {"value": "/customers"}
+
+
+def test_annotation_values_strip_the_quotes_of_a_string_literal():
+    assert get_annotation_values(annotation_of("named")) == {"value": "/{id}"}
+
+
+def test_annotation_values_report_every_named_element():
+    assert get_annotation_values(annotation_of("several")) == {
+        "value": "filter",
+        "required": "false",
+        "defaultValue": "",
+    }
+
+
+def test_annotation_values_leave_out_an_element_holding_an_expression():
+    """``method = RequestMethod.GET`` is no literal, so there is nothing to read.
+
+    Reporting the text of the expression would invent a value that the source
+    does not state as one.
+    """
+    assert get_annotation_values(annotation_of("expression")) == {}
+
+
+def test_annotation_values_keep_a_numeric_literal_unquoted():
+    assert get_annotation_values(annotation_of("numeric")) == {"portNumber": "8080"}
