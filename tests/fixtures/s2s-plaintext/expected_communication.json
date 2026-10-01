@@ -1,0 +1,22 @@
+{
+  "Callee": {
+    "transport": null,
+    "calls": []
+  },
+  "Caller": {
+    "transport": "plaintext",
+    "calls": [
+      {
+        "artifactType": "SOURCE",
+        "file": "src/caller/src/main/java/com/example/caller/CalleeProxy.java",
+        "line": "11",
+        "resolvedUrl": "http://callee:8081/greeting",
+        "scheme": "http",
+        "snippet": "return restTemplate.getForObject(\"http://callee:8081/greeting\", String.class);",
+        "target": "Callee",
+        "targetKind": "SERVICE",
+        "technology": "RestTemplate"
+      }
+    ]
+  }
+}

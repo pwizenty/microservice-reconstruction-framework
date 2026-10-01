@@ -1,0 +1,38 @@
+{
+  "Backend": {
+    "transport": null,
+    "calls": []
+  },
+  "Gateway": {
+    "transport": "unresolved",
+    "calls": [
+      {
+        "artifactType": "SOURCE",
+        "file": "src/gateway/src/main/java/com/example/gateway/BackendClient.java",
+        "line": "6",
+        "property": "backend.baseURL",
+        "resolvedUrl": "https://backend:8443",
+        "scheme": "https",
+        "snippet": "@FeignClient(name = \"backend\", url = \"${backend.baseURL}\")",
+        "target": "Backend",
+        "targetKind": "SERVICE",
+        "technology": "Feign"
+      },
+      {
+        "artifactType": "SOURCE",
+        "file": "src/gateway/src/main/java/com/example/gateway/ReportingClient.java",
+        "line": "13",
+        "property": "reporting.baseURL",
+        "scheme": "UNRESOLVED",
+        "snippet": "@FeignClient(name = \"reporting\", url = \"${reporting.baseURL}\")",
+        "target": "Reporting",
+        "targetKind": "SERVICE",
+        "technology": "Feign"
+      }
+    ]
+  },
+  "Reporting": {
+    "transport": null,
+    "calls": []
+  }
+}
