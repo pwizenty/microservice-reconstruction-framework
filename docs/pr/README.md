@@ -16,6 +16,9 @@ stay free of files describing themselves.
 | `feat-deployment-configuration.md` | `feat/deployment-configuration` | `dev` |
 | `feat-rest-technology-information.md` | `feat/rest-technology-information` | `dev` |
 | `feat-communication-plugin.md` | `feat/communication-plugin` | `dev` |
+| `feat-service-dependencies.md` | `feat/service-dependencies` | `dev` |
+| `feat-grpc-node-plugins.md` | `feat/grpc-node-plugins` | `dev` |
+| `docs-plans-and-adr.md` | `docs/plans-and-adr` | `dev` |
 
 Merge order matters for the last one: it contains the commits of
 `feat/rest-technology-information`, so that branch goes first.
