@@ -16,6 +16,8 @@ class PluginType(Enum):
     DOCKER = "Docker"
     SPRING = "Spring"
     COMMUNICATION = "Communication"
+    PROTOBUF = "Protobuf"
+    NODE = "Node"
 
 
 class Plugin(ABC):

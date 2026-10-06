@@ -11,11 +11,14 @@ from mrf.modules.domain_data import Context
 from mrf.modules.operation import OperationNode
 from mrf.modules.service import Microservice
 from mrf.plugins.data.java.java_plugin import JavaPlugin
+from mrf.plugins.data.protobuf.protobuf_plugin import ProtobufDataPlugin
 from mrf.plugins.operation.docker.docker_plugin import DockerPlugin
 from mrf.plugins.reconstruction_plugin import PluginType
 from mrf.plugins.service.communication.communication_plugin import (
     CommunicationPlugin,
 )
+from mrf.plugins.service.node.node_plugin import NodePlugin
+from mrf.plugins.service.protobuf.protobuf_plugin import ProtobufServicePlugin
 from mrf.plugins.service.spring.spring_plugin import SpringPlugin
 from mrf.repositories.mongo_repository import (
     save_contexts,
@@ -74,6 +77,12 @@ class ReconstructionHandler:
             self.reconstructed_data.extend(
                 JavaPlugin().execute_reconstruction(source_files)
             )
+        if PluginType.PROTOBUF in self.plugins:
+            # A proto file describes a service and the data it exchanges, so one
+            # selection contributes to this phase and to the service phase.
+            self.reconstructed_data.extend(
+                ProtobufDataPlugin().execute_reconstruction(source_files)
+            )
 
     def __reconstruct_service(self, source_files: list[SourceFile]) -> None:
         if PluginType.SPRING in self.plugins:
@@ -87,6 +96,18 @@ class ReconstructionHandler:
             ReconstructionHandler.reconstructed_data = self.__merge_contexts(
                 self.reconstructed_data, contexts
             )
+
+        if PluginType.PROTOBUF in self.plugins:
+            self.reconstructed_service.extend(
+                ProtobufServicePlugin().execute_reconstruction(source_files)
+            )
+
+        if PluginType.NODE in self.plugins:
+            # What a Node service serves is attached to the microservice another
+            # plugin reconstructed for it, so this runs after they have.
+            node = NodePlugin()
+            node.execute_reconstruction(source_files)
+            node.assign_to(self.reconstructed_service)
 
         if PluginType.COMMUNICATION in self.plugins:
             # The calls of a service are meta-data on the microservice that

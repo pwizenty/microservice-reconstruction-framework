@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package reporting;
+
+service Reporting {
+  rpc Generate (GenerateRequest) returns (stream Chunk);
+}
+
+message GenerateRequest {
+  string period = 1;
+}
+
+message Chunk {
+  bytes payload = 1;
+}

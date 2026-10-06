@@ -1,0 +1,435 @@
+{
+  "contexts": [
+    {
+      "collections": [
+        {
+          "data": [],
+          "field_type": {
+            "name": "string"
+          },
+          "name": "StringList",
+          "qualified_name": "com.example.types.TypeProbe.StringList"
+        },
+        {
+          "data": [],
+          "field_type": {
+            "class_type": "DATA_STRUCTURE",
+            "name": "Everything_Nested",
+            "qualified_name": "com.example.types.TypeProbe.Everything_Nested"
+          },
+          "name": "Everything_NestedList",
+          "qualified_name": "com.example.types.TypeProbe.Everything_NestedList"
+        }
+      ],
+      "data": [],
+      "data_structures": [
+        {
+          "data": [],
+          "fields": [
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": {
+                    "protoType": "double"
+                  }
+                }
+              ],
+              "field_type": {
+                "name": "double"
+              },
+              "name": "a_double"
+            },
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": {
+                    "protoType": "float"
+                  }
+                }
+              ],
+              "field_type": {
+                "name": "float"
+              },
+              "name": "a_float"
+            },
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": {
+                    "protoType": "int32"
+                  }
+                }
+              ],
+              "field_type": {
+                "name": "int"
+              },
+              "name": "an_int32"
+            },
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": {
+                    "protoType": "int64"
+                  }
+                }
+              ],
+              "field_type": {
+                "name": "long"
+              },
+              "name": "an_int64"
+            },
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": {
+                    "protoType": "uint32"
+                  }
+                }
+              ],
+              "field_type": {
+                "name": "int"
+              },
+              "name": "a_uint32"
+            },
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": {
+                    "protoType": "uint64"
+                  }
+                }
+              ],
+              "field_type": {
+                "name": "long"
+              },
+              "name": "a_uint64"
+            },
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": {
+                    "protoType": "sint32"
+                  }
+                }
+              ],
+              "field_type": {
+                "name": "int"
+              },
+              "name": "a_sint32"
+            },
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": {
+                    "protoType": "sint64"
+                  }
+                }
+              ],
+              "field_type": {
+                "name": "long"
+              },
+              "name": "a_sint64"
+            },
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": {
+                    "protoType": "fixed32"
+                  }
+                }
+              ],
+              "field_type": {
+                "name": "int"
+              },
+              "name": "a_fixed32"
+            },
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": {
+                    "protoType": "fixed64"
+                  }
+                }
+              ],
+              "field_type": {
+                "name": "long"
+              },
+              "name": "a_fixed64"
+            },
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": {
+                    "protoType": "sfixed32"
+                  }
+                }
+              ],
+              "field_type": {
+                "name": "int"
+              },
+              "name": "a_sfixed32"
+            },
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": {
+                    "protoType": "sfixed64"
+                  }
+                }
+              ],
+              "field_type": {
+                "name": "long"
+              },
+              "name": "a_sfixed64"
+            },
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": {
+                    "protoType": "bool"
+                  }
+                }
+              ],
+              "field_type": {
+                "name": "boolean"
+              },
+              "name": "a_bool"
+            },
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": {
+                    "protoType": "string"
+                  }
+                }
+              ],
+              "field_type": {
+                "name": "string"
+              },
+              "name": "a_string"
+            },
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": {
+                    "protoType": "bytes"
+                  }
+                }
+              ],
+              "field_type": {
+                "name": "byte"
+              },
+              "name": "a_bytes"
+            },
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": {
+                    "protoType": "string",
+                    "repeated": "true"
+                  }
+                }
+              ],
+              "field_type": {
+                "class_type": "COLLECTION",
+                "name": "StringList",
+                "qualified_name": "com.example.types.TypeProbe.StringList"
+              },
+              "name": "many_strings"
+            },
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": {
+                    "protoType": "bool"
+                  }
+                }
+              ],
+              "field_type": {
+                "name": "boolean"
+              },
+              "name": "maybe"
+            },
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": {
+                    "protoType": "Nested",
+                    "repeated": "true"
+                  }
+                }
+              ],
+              "field_type": {
+                "class_type": "COLLECTION",
+                "name": "Everything_NestedList",
+                "qualified_name": "com.example.types.TypeProbe.Everything_NestedList"
+              },
+              "name": "by_name"
+            },
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": {
+                    "protoType": "google.protobuf.Timestamp"
+                  }
+                }
+              ],
+              "field_type": {
+                "class_type": "UNSPECIFIED",
+                "name": "google.protobuf.Timestamp",
+                "qualified_name": "google.protobuf.Timestamp"
+              },
+              "name": "created_at"
+            },
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": {
+                    "protoType": "string",
+                    "oneof": "either"
+                  }
+                }
+              ],
+              "field_type": {
+                "name": "string"
+              },
+              "name": "text"
+            },
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": {
+                    "protoType": "Nested",
+                    "oneof": "either"
+                  }
+                }
+              ],
+              "field_type": {
+                "class_type": "DATA_STRUCTURE",
+                "name": "Everything_Nested",
+                "qualified_name": "com.example.types.TypeProbe.Everything_Nested"
+              },
+              "name": "structure"
+            }
+          ],
+          "name": "Everything",
+          "origin_file": "src/types.proto",
+          "qualified_name": "com.example.types.TypeProbe.Everything"
+        },
+        {
+          "data": [],
+          "fields": [
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": {
+                    "protoType": "string"
+                  }
+                }
+              ],
+              "field_type": {
+                "name": "string"
+              },
+              "name": "value"
+            }
+          ],
+          "name": "Everything_Nested",
+          "origin_file": "src/types.proto",
+          "qualified_name": "com.example.types.TypeProbe.Everything_Nested"
+        }
+      ],
+      "enums": [],
+      "name": "TypeProbe",
+      "origin_file": "src/types.proto",
+      "qualified_name": "com.example.types.TypeProbe"
+    }
+  ],
+  "microservices": [
+    {
+      "data": [
+        {
+          "name": "public",
+          "values": {}
+        },
+        {
+          "name": "functional",
+          "values": {}
+        }
+      ],
+      "interfaces": [
+        {
+          "data": [
+            {
+              "name": "ProtoService",
+              "values": {
+                "address": "com.example.types.TypeProbe"
+              }
+            }
+          ],
+          "name": "TypeProbe",
+          "operations": [
+            {
+              "data": [
+                {
+                  "name": "ProtoRpc",
+                  "values": {}
+                }
+              ],
+              "name": "Probe",
+              "parameters": [
+                {
+                  "communication_type": "Synchronous",
+                  "data": [],
+                  "exchange_pattern": "In",
+                  "name": "Everything",
+                  "type": {
+                    "class_type": "DATA_STRUCTURE",
+                    "name": "Everything",
+                    "qualified_name": "com.example.types.TypeProbe.Everything"
+                  }
+                },
+                {
+                  "communication_type": "Synchronous",
+                  "data": [],
+                  "exchange_pattern": "Out",
+                  "name": "Everything",
+                  "type": {
+                    "class_type": "DATA_STRUCTURE",
+                    "name": "Everything",
+                    "qualified_name": "com.example.types.TypeProbe.Everything"
+                  }
+                }
+              ]
+            }
+          ],
+          "qualified_name": "com.example.types.TypeProbe.TypeProbe"
+        }
+      ],
+      "name": "TypeProbe",
+      "origin_file": "src/types.proto",
+      "qualified_name": "com.example.types.TypeProbe"
+    }
+  ]
+}

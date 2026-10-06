@@ -1,0 +1,146 @@
+{
+  "contexts": [
+    {
+      "collections": [],
+      "data": [],
+      "data_structures": [
+        {
+          "data": [],
+          "fields": [
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": {
+                    "protoType": "string"
+                  }
+                }
+              ],
+              "field_type": {
+                "name": "string"
+              },
+              "name": "period"
+            }
+          ],
+          "name": "GenerateRequest",
+          "origin_file": "src/reporting/reporting.proto",
+          "qualified_name": "reporting.Reporting.GenerateRequest"
+        },
+        {
+          "data": [],
+          "fields": [
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": {
+                    "protoType": "bytes"
+                  }
+                }
+              ],
+              "field_type": {
+                "name": "byte"
+              },
+              "name": "payload"
+            }
+          ],
+          "name": "Chunk",
+          "origin_file": "src/reporting/reporting.proto",
+          "qualified_name": "reporting.Reporting.Chunk"
+        }
+      ],
+      "enums": [],
+      "name": "Reporting",
+      "origin_file": "src/reporting/reporting.proto",
+      "qualified_name": "reporting.Reporting"
+    }
+  ],
+  "microservices": [
+    {
+      "data": [
+        {
+          "name": "public",
+          "values": {}
+        },
+        {
+          "name": "functional",
+          "values": {}
+        },
+        {
+          "name": "GrpcServer",
+          "values": {
+            "host": "0.0.0.0",
+            "port": "50052",
+            "transportSecurity": "UNRESOLVED"
+          }
+        },
+        {
+          "name": "MessageQueue",
+          "values": {
+            "host": "broker",
+            "port": "61613",
+            "broker": "activemq",
+            "queue": "newreports",
+            "scheme": "stomp",
+            "credentialsConfigured": "true",
+            "transportSecurity": "UNRESOLVED"
+          }
+        }
+      ],
+      "interfaces": [
+        {
+          "data": [
+            {
+              "name": "ProtoService",
+              "values": {
+                "address": "reporting.Reporting"
+              }
+            }
+          ],
+          "name": "Reporting",
+          "operations": [
+            {
+              "data": [
+                {
+                  "name": "ProtoRpc",
+                  "values": {
+                    "stream": "response"
+                  }
+                }
+              ],
+              "name": "Generate",
+              "parameters": [
+                {
+                  "communication_type": "Synchronous",
+                  "data": [],
+                  "exchange_pattern": "In",
+                  "name": "GenerateRequest",
+                  "type": {
+                    "class_type": "DATA_STRUCTURE",
+                    "name": "GenerateRequest",
+                    "qualified_name": "reporting.Reporting.GenerateRequest"
+                  }
+                },
+                {
+                  "communication_type": "Asynchronous",
+                  "data": [],
+                  "exchange_pattern": "Out",
+                  "name": "Chunk",
+                  "type": {
+                    "class_type": "DATA_STRUCTURE",
+                    "name": "Chunk",
+                    "qualified_name": "reporting.Reporting.Chunk"
+                  }
+                }
+              ]
+            }
+          ],
+          "qualified_name": "reporting.Reporting.Reporting"
+        }
+      ],
+      "name": "Reporting",
+      "origin_file": "src/reporting/reporting.proto",
+      "qualified_name": "reporting.Reporting"
+    }
+  ]
+}
