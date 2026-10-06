@@ -28,11 +28,14 @@ Before claiming a task is done: ruff, mypy and pytest must pass. Show the output
     as meta-data on the microservice (ADR-0009); one detector per client technology
   - `data/protobuf/`, `service/protobuf/` – a gRPC contract: messages into the domain
     phase, service and rpcs into the service phase; one selection (`Protobuf`) feeds both
+  - `service/node/` – what a Node service serves, from `package.json` and its own
+    configuration; attaches to the microservice another plugin reconstructed, and
+    reconstructs none of its own
   - `common/common_plugin.py` – shared `Data` (meta-data) and `JavaClassArtifact`
 - `mrf/utilities/java_utils.py`, `mrf/utilities/sping.py`, `mrf/utilities/docker.py`,
   `mrf/utilities/communication.py`, `mrf/utilities/proto_utils.py` (hand-written proto3
-  parser), `mrf/utilities/protobuf.py`, `mrf/utilities/meta_data.py` – parsing helpers
-  & constants
+  parser), `mrf/utilities/protobuf.py`, `mrf/utilities/node.py`,
+  `mrf/utilities/meta_data.py` – parsing helpers & constants
 - `mrf/repositories/` – mapping model → `R*` persistence classes → MongoDB
 
 Dependency direction: plugins → modules/utilities; repositories → modules.
@@ -77,6 +80,10 @@ Index: @docs/adr/README.md
   tuned on Lakeside Mutual – check golden fixtures of other systems before changing.
 - Spring infrastructure services (Eureka, Zuul) are deliberately skipped
   (`INFRASTRUCTURE_TECHNOLOGIES`).
+- A container that deploys a service **must** carry `springApplicationName` and
+  `serverPort`: the strict `deployment_base.technology` marks both mandatory. The Docker
+  plugin reads them from `application.properties`, falling back to `package.json` and
+  `config.json` for a service that is not Spring.
 - A data structure's qualified name **must** end `<Context>.<Type>`: the LEMMA side
   reads the context as the second-to-last part of it, and names the data model file
   after the context. A name with an extra dot is generated into a model that does not

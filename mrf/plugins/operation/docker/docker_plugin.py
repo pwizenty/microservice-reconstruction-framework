@@ -6,6 +6,7 @@ runs on. See ADR-0008 for what is reconstructed and what is deliberately left
 to LEMMA.
 """
 
+import json
 import logging
 import os
 from pathlib import PurePath
@@ -25,12 +26,18 @@ from mrf.utilities.docker import (
     COMPOSE_FILE_NAMES,
     COMPOSE_SERVICE,
     COMPOSE_SERVICES_KEY,
+    CONFIG_JSON,
+    CONFIG_PORT_KEY,
+    CONFIG_PORT_SECTIONS,
     CONFIGURATION_PROPERTIES,
     CONTAINER_SUFFIX,
     DOCKERFILE_FROM,
     DOCKERFILE_NAME,
     INFRASTRUCTURE_NODE_NAMES,
     MAIN_RESOURCES,
+    NODE_MODULES,
+    PACKAGE_JSON,
+    PACKAGE_NAME_KEY,
     SERVICE_PROPERTIES,
 )
 
@@ -248,15 +255,97 @@ class DockerPlugin(Plugin):
         )
         if configuration is None:
             logger.debug("No %s below %s", APPLICATION_PROPERTIES, directory)
-            return
+            values = self.__read_node_configuration(directory, source_files)
+        else:
+            values = self.__read_properties(configuration.file)
 
-        values = self.__read_properties(configuration.file)
         if not values:
             return
 
         data = Data(SERVICE_PROPERTIES)
         data.values = values
         node.data.append(data)
+
+    def __read_node_configuration(
+        self, directory: str, source_files: list[SourceFile]
+    ) -> dict[str, str]:
+        """Read the deployment configuration of a service that is not Spring.
+
+        A node a container deploys has to be configured whatever it is written
+        in: the technology model marks the application name and the port as
+        mandatory of every container that deploys a service, so a service with
+        no Spring configuration would otherwise be reconstructed into a
+        container the Operation DSL rejects.
+
+        A Node service states its name in its ``package.json`` and the port it
+        listens on in its own configuration file. The names reported are the
+        ones the technology model declares, exactly as for a Spring service -
+        they belong to the model rather than to Spring.
+
+        Args:
+            directory (str): Build directory of the container
+            source_files ([SourceFile]): Source files of the analysed system
+
+        Returns:
+            dict[str, str]: The configuration, empty when the service states
+                none
+        """
+        values: dict[str, str] = {}
+
+        manifest = self.__configuration_file(PACKAGE_JSON, directory, source_files)
+        if manifest is not None:
+            name = self.__read_json(manifest).get(PACKAGE_NAME_KEY)
+            if isinstance(name, str) and name:
+                values[CONFIGURATION_PROPERTIES["spring.application.name"]] = name
+
+        configuration = self.__configuration_file(CONFIG_JSON, directory, source_files)
+        if configuration is not None:
+            port = self.__read_port(self.__read_json(configuration))
+            if port is not None:
+                values[CONFIGURATION_PROPERTIES["server.port"]] = port
+
+        return values
+
+    def __configuration_file(
+        self, name: str, directory: str, source_files: list[SourceFile]
+    ) -> SourceFile | None:
+        """Find a configuration file of a service, nearest to its root first.
+
+        A dependency of a Node service brings a ``package.json`` of its own, so
+        the shallowest one below the build directory is the service's.
+        """
+        candidates = sorted(
+            (
+                f
+                for f in source_files
+                if f.file is not None
+                and PurePath(f.path).name == name
+                and self.__lies_below(f.path, directory)
+                and NODE_MODULES not in PurePath(f.path).parts
+            ),
+            key=lambda f: (len(PurePath(f.path).parts), f.path),
+        )
+        return candidates[0] if candidates else None
+
+    def __read_json(self, source_file: SourceFile) -> dict:
+        """Read a JSON configuration, or nothing when it cannot be read."""
+        try:
+            content = json.loads(source_file.file or "")
+        except json.JSONDecodeError:
+            logger.warning("Skipping %s, it is no valid JSON.", source_file.path)
+            return {}
+        return content if isinstance(content, dict) else {}
+
+    def __read_port(self, configuration: dict) -> str | None:
+        """Read the port a Node service listens on, or ``None``."""
+        for section in CONFIG_PORT_SECTIONS:
+            values = configuration.get(section)
+            if not isinstance(values, dict):
+                continue
+            port = values.get(CONFIG_PORT_KEY)
+            if isinstance(port, int | str) and str(port):
+                return str(port)
+        return None
 
     def __read_properties(self, configuration: str) -> dict[str, str]:
         """Read the configured properties, by their name in a technology model."""

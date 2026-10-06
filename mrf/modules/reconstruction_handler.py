@@ -17,6 +17,7 @@ from mrf.plugins.reconstruction_plugin import PluginType
 from mrf.plugins.service.communication.communication_plugin import (
     CommunicationPlugin,
 )
+from mrf.plugins.service.node.node_plugin import NodePlugin
 from mrf.plugins.service.protobuf.protobuf_plugin import ProtobufServicePlugin
 from mrf.plugins.service.spring.spring_plugin import SpringPlugin
 from mrf.repositories.mongo_repository import (
@@ -100,6 +101,13 @@ class ReconstructionHandler:
             self.reconstructed_service.extend(
                 ProtobufServicePlugin().execute_reconstruction(source_files)
             )
+
+        if PluginType.NODE in self.plugins:
+            # What a Node service serves is attached to the microservice another
+            # plugin reconstructed for it, so this runs after they have.
+            node = NodePlugin()
+            node.execute_reconstruction(source_files)
+            node.assign_to(self.reconstructed_service)
 
         if PluginType.COMMUNICATION in self.plugins:
             # The calls of a service are meta-data on the microservice that

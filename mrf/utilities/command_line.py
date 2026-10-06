@@ -43,7 +43,7 @@ def handle_parameters() -> arg_parser.Namespace:
     parser.add_argument(
         "-p",
         "--plugin",
-        choices=["Java", "Docker", "Spring", "Communication", "Protobuf"],
+        choices=["Java", "Docker", "Spring", "Communication", "Protobuf", "Node"],
         nargs="+",
         type=str,
         help="Plugins used by the MRF.",

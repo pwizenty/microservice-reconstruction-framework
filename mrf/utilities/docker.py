@@ -34,6 +34,35 @@ configures its tests rather than its deployment.
 SERVICE_PROPERTIES = "ServiceProperties"
 """Meta-data name holding the deployment configuration of a node."""
 
+NODE_MODULES = "node_modules"
+"""Folder a Node service's dependencies are installed into.
+
+Every dependency brings a manifest and a configuration of its own, none of which
+describes the service, so the folder is excluded wherever one is looked for.
+"""
+
+PACKAGE_JSON = "package.json"
+"""File name of the manifest of a Node service."""
+
+CONFIG_JSON = "config.json"
+"""File name of the configuration a Node service of Lakeside Mutual reads.
+
+The name and the shape are a convention of the service rather than of Node -
+``nconf`` reads whatever file it is pointed at - so an unknown shape yields
+nothing rather than a guess.
+"""
+
+PACKAGE_NAME_KEY = "name"
+
+CONFIG_PORT_SECTIONS = ["grpc", "gRPC", "http", "server"]
+"""Sections of a Node configuration that name the port a service listens on.
+
+Read in order, so a service that configures several keeps the first. A section
+this list does not name is not read, and the node then carries no port.
+"""
+
+CONFIG_PORT_KEY = "port"
+
 CONFIGURATION_PROPERTIES = {
     "spring.application.name": "springApplicationName",
     "server.port": "serverPort",

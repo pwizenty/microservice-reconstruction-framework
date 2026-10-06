@@ -1,0 +1,13 @@
+{
+  "activemq": {
+    "host": "broker",
+    "port": 61613,
+    "username": "queueuser",
+    "password": "secret",
+    "queueName": "newreports"
+  },
+  "grpc": {
+    "host": "0.0.0.0",
+    "port": 50052
+  }
+}
