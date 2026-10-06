@@ -1,6 +1,11 @@
 # Plan: service-to-service dependencies in the service model
 
-Status: **proposed, awaiting review**
+Status: **implemented**, MRF PR #7 and LEMMA PR #5, merged 2026-10-01.
+
+Kept as the record of the design: what was read from the Service DSL before
+anything was written, and the three constraints that decided the shape (§1).
+Section 7 lists what the implementation does not reach, and section 9 the
+questions it was built under.
 
 When one service calls another's REST endpoint, say so in the generated LEMMA
 service model, at the finest level that can be resolved: `required operations`
