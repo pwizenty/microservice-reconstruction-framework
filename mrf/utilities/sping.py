@@ -1,5 +1,14 @@
 """Module with a summary of static variables."""
 
+from mrf.utilities.meta_data import ENDPOINT, ENDPOINT_ADDRESS
+
+__all__ = ["ENDPOINT", "ENDPOINT_ADDRESS"]
+"""Re-exported so the plugins that read Spring keep one place to import from.
+
+The two names are shared with the other technologies and are defined in
+:mod:`mrf.utilities.meta_data`.
+"""
+
 # Spring annotations
 CONTEXT_ANNOTATION = "SpringBootApplication"
 ENTITY_ANNOTATION = "Entity"
@@ -55,17 +64,6 @@ selector on the exchange pattern, which holds because Spring writes all four on
 an incoming parameter.
 """
 
-ENDPOINT = "Endpoint"
-"""Meta-data name under which the reconstruction reports an endpoint.
-
-An endpoint is no annotation, so it is reported under a name of its own rather
-than under the name of the annotation its address was read from. Its address is
-relative to the endpoint of the element above it, as it is in Spring and in
-LEMMA alike.
-"""
-
-ENDPOINT_ADDRESS = "address"
-"""Key under which an :data:`ENDPOINT` holds its address."""
 # Application class string
 APPLICATION_CLASS = "Application"
 CONTROLLER_CLASS = "Controller"

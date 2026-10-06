@@ -1,0 +1,250 @@
+{
+  "contexts": [
+    {
+      "collections": [
+        {
+          "data": [],
+          "field_type": {
+            "class_type": "DATA_STRUCTURE",
+            "name": "Order_OrderLine",
+            "qualified_name": "com.example.orders.OrderQuery.Order_OrderLine"
+          },
+          "name": "Order_OrderLineList",
+          "qualified_name": "com.example.orders.OrderQuery.Order_OrderLineList"
+        }
+      ],
+      "data": [],
+      "data_structures": [
+        {
+          "data": [],
+          "fields": [
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": {
+                    "protoType": "string"
+                  }
+                }
+              ],
+              "field_type": {
+                "name": "string"
+              },
+              "name": "order_id"
+            }
+          ],
+          "name": "GetOrderRequest",
+          "origin_file": "src/orders.proto",
+          "qualified_name": "com.example.orders.OrderQuery.GetOrderRequest"
+        },
+        {
+          "data": [],
+          "fields": [],
+          "name": "WatchRequest",
+          "origin_file": "src/orders.proto",
+          "qualified_name": "com.example.orders.OrderQuery.WatchRequest"
+        },
+        {
+          "data": [],
+          "fields": [
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": {
+                    "protoType": "string"
+                  }
+                }
+              ],
+              "field_type": {
+                "name": "string"
+              },
+              "name": "order_id"
+            },
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": {
+                    "protoType": "OrderLine",
+                    "repeated": "true"
+                  }
+                }
+              ],
+              "field_type": {
+                "class_type": "COLLECTION",
+                "name": "Order_OrderLineList",
+                "qualified_name": "com.example.orders.OrderQuery.Order_OrderLineList"
+              },
+              "name": "lines"
+            },
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": {
+                    "protoType": "Status"
+                  }
+                }
+              ],
+              "field_type": {
+                "class_type": "ENUM",
+                "name": "Status",
+                "qualified_name": "com.example.orders.OrderQuery.Status"
+              },
+              "name": "status"
+            }
+          ],
+          "name": "Order",
+          "origin_file": "src/orders.proto",
+          "qualified_name": "com.example.orders.OrderQuery.Order"
+        },
+        {
+          "data": [],
+          "fields": [
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": {
+                    "protoType": "string"
+                  }
+                }
+              ],
+              "field_type": {
+                "name": "string"
+              },
+              "name": "article"
+            },
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": {
+                    "protoType": "int32"
+                  }
+                }
+              ],
+              "field_type": {
+                "name": "int"
+              },
+              "name": "quantity"
+            }
+          ],
+          "name": "Order_OrderLine",
+          "origin_file": "src/orders.proto",
+          "qualified_name": "com.example.orders.OrderQuery.Order_OrderLine"
+        }
+      ],
+      "enums": [
+        {
+          "name": "Status"
+        }
+      ],
+      "name": "OrderQuery",
+      "origin_file": "src/orders.proto",
+      "qualified_name": "com.example.orders.OrderQuery"
+    }
+  ],
+  "microservices": [
+    {
+      "data": [
+        {
+          "name": "public",
+          "values": {}
+        },
+        {
+          "name": "functional",
+          "values": {}
+        }
+      ],
+      "interfaces": [
+        {
+          "data": [
+            {
+              "name": "ProtoService",
+              "values": {
+                "address": "com.example.orders.OrderQuery"
+              }
+            }
+          ],
+          "name": "OrderQuery",
+          "operations": [
+            {
+              "data": [
+                {
+                  "name": "ProtoRpc",
+                  "values": {}
+                }
+              ],
+              "name": "GetOrder",
+              "parameters": [
+                {
+                  "communication_type": "Synchronous",
+                  "data": [],
+                  "exchange_pattern": "In",
+                  "name": "GetOrderRequest",
+                  "type": {
+                    "class_type": "DATA_STRUCTURE",
+                    "name": "GetOrderRequest",
+                    "qualified_name": "com.example.orders.OrderQuery.GetOrderRequest"
+                  }
+                },
+                {
+                  "communication_type": "Synchronous",
+                  "data": [],
+                  "exchange_pattern": "Out",
+                  "name": "Order",
+                  "type": {
+                    "class_type": "DATA_STRUCTURE",
+                    "name": "Order",
+                    "qualified_name": "com.example.orders.OrderQuery.Order"
+                  }
+                }
+              ]
+            },
+            {
+              "data": [
+                {
+                  "name": "ProtoRpc",
+                  "values": {
+                    "stream": "response"
+                  }
+                }
+              ],
+              "name": "WatchOrders",
+              "parameters": [
+                {
+                  "communication_type": "Synchronous",
+                  "data": [],
+                  "exchange_pattern": "In",
+                  "name": "WatchRequest",
+                  "type": {
+                    "class_type": "DATA_STRUCTURE",
+                    "name": "WatchRequest",
+                    "qualified_name": "com.example.orders.OrderQuery.WatchRequest"
+                  }
+                },
+                {
+                  "communication_type": "Asynchronous",
+                  "data": [],
+                  "exchange_pattern": "Out",
+                  "name": "Order",
+                  "type": {
+                    "class_type": "DATA_STRUCTURE",
+                    "name": "Order",
+                    "qualified_name": "com.example.orders.OrderQuery.Order"
+                  }
+                }
+              ]
+            }
+          ],
+          "qualified_name": "com.example.orders.OrderQuery.OrderQuery"
+        }
+      ],
+      "name": "OrderQuery",
+      "origin_file": "src/orders.proto",
+      "qualified_name": "com.example.orders.OrderQuery"
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package com.example.orders;
+
+// A second service in the same file, so that one file can describe two.
+service OrderQuery {
+  rpc GetOrder (GetOrderRequest) returns (Order);
+  rpc WatchOrders (WatchRequest) returns (stream Order) {}
+}
+
+message GetOrderRequest {
+  string order_id = 1;
+}
+
+message WatchRequest {}
+
+message Order {
+  string order_id = 1;
+  repeated OrderLine lines = 2;
+  Status status = 3;
+
+  message OrderLine {
+    string article = 1;
+    int32 quantity = 2;
+  }
+}
+
+enum Status {
+  UNKNOWN = 0;
+  PLACED = 1;
+  SHIPPED = 2;
+}
