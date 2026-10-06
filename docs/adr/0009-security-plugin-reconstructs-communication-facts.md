@@ -1,6 +1,6 @@
 # ADR-0009: Reconstruct communication security as meta-data, in a plugin of its own
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-01
 - Deciders: Philip Wizenty
 - Supersedes: –

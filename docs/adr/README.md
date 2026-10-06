@@ -13,4 +13,4 @@ New ADRs start as *Proposed*; only the maintainer sets *Accepted*.
 | [0006](0006-ljavalang-from-fork-pinned-by-commit.md) | Consume ljavalang from the pwizenty fork, pinned by commit | Proposed |
 | [0007](0007-no-generated-api-documentation.md) | Keep hand-written records instead of generated API documentation | Proposed |
 | [0008](0008-operation-phase-reconstructs-deployment.md) | Reconstruct deployment into operation nodes, in a third collection | Accepted |
-| [0009](0009-security-plugin-reconstructs-communication-facts.md) | Reconstruct communication security as meta-data, in a plugin of its own | Proposed |
+| [0009](0009-security-plugin-reconstructs-communication-facts.md) | Reconstruct communication security as meta-data, in a plugin of its own | Accepted |
