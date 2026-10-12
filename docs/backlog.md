@@ -30,6 +30,12 @@ So the list below reads as the remainder rather than as the whole picture.
 
 ## A. Security smell: the rest of the facts
 
+The smell is **Non-Secured Service-to-Service Communications**, §3.7 of Ponce
+et al. (2022) — see `security-smells.md` for the paper's ten smells, their
+refactorings, and what each would need from the reconstruction. The fact list
+below comes from Philip's task document rather than from the paper, which is why
+some names do not appear there.
+
 One fact is reconstructed today. `s2s-communication-plugin-plan.md` §6 lists the
 others; this is them, ordered by what they cost rather than by the task
 document's order.

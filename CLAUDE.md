@@ -45,6 +45,9 @@ Dependency direction: plugins → modules/utilities; repositories → modules.
 ## Planned work
 Backlog across both repositories: @docs/backlog.md – what is identified but not
 done, what each item needs, and which items wait on a decision.
+Security smells: @docs/security-smells.md – the ten smells of Ponce et al.
+(2022), their refactorings, and which are reconstructable from current facts.
+MRF collects facts; the smell decision belongs to the LEMMA validation (ADR-0009).
 
 ## Architecture decisions
 Index: @docs/adr/README.md
