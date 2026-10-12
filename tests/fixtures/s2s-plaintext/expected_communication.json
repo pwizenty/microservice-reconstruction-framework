@@ -2,7 +2,16 @@
   "Callee": {
     "transport": null,
     "calls": [],
-    "endpoints": []
+    "endpoints": [],
+    "server": [
+      {
+        "connector": "server",
+        "port": "8081",
+        "protocol": "http",
+        "tlsEnabled": "false",
+        "valueSource": "src/callee/src/main/resources/application.properties"
+      }
+    ]
   },
   "Caller": {
     "transport": "plaintext",
@@ -20,6 +29,7 @@
         "technology": "RestTemplate"
       }
     ],
-    "endpoints": []
+    "endpoints": [],
+    "server": []
   }
 }

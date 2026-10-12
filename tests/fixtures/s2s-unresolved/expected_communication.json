@@ -2,7 +2,16 @@
   "Backend": {
     "transport": null,
     "calls": [],
-    "endpoints": []
+    "endpoints": [],
+    "server": [
+      {
+        "connector": "server",
+        "port": "8443",
+        "protocol": "https",
+        "tlsEnabled": "true",
+        "valueSource": "src/backend/src/main/resources/application.properties"
+      }
+    ]
   },
   "Gateway": {
     "transport": "unresolved",
@@ -70,11 +79,29 @@
         "technology": "Feign",
         "verb": "GetMapping"
       }
+    ],
+    "server": [
+      {
+        "connector": "server",
+        "port": "8080",
+        "protocol": "http",
+        "tlsEnabled": "false",
+        "valueSource": "src/gateway/src/main/resources/application.properties"
+      }
     ]
   },
   "Reporting": {
     "transport": null,
     "calls": [],
-    "endpoints": []
+    "endpoints": [],
+    "server": [
+      {
+        "connector": "server",
+        "port": "8082",
+        "protocol": "http",
+        "tlsEnabled": "false",
+        "valueSource": "src/reporting/src/main/resources/application.properties"
+      }
+    ]
   }
 }

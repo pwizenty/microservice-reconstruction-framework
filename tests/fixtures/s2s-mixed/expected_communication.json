@@ -2,12 +2,30 @@
   "Alpha": {
     "transport": null,
     "calls": [],
-    "endpoints": []
+    "endpoints": [],
+    "server": [
+      {
+        "connector": "server",
+        "port": "8081",
+        "protocol": "http",
+        "tlsEnabled": "false",
+        "valueSource": "src/alpha/src/main/resources/application.properties"
+      }
+    ]
   },
   "Beta": {
     "transport": null,
     "calls": [],
-    "endpoints": []
+    "endpoints": [],
+    "server": [
+      {
+        "connector": "server",
+        "port": "8443",
+        "protocol": "http",
+        "tlsEnabled": "false",
+        "valueSource": "src/beta/src/main/resources/application.properties"
+      }
+    ]
   },
   "Hub": {
     "transport": "mixed",
@@ -39,6 +57,15 @@
         "technology": "RestTemplate"
       }
     ],
-    "endpoints": []
+    "endpoints": [],
+    "server": [
+      {
+        "connector": "server",
+        "port": "8080",
+        "protocol": "http",
+        "tlsEnabled": "false",
+        "valueSource": "src/hub/src/main/resources/application.properties"
+      }
+    ]
   }
 }

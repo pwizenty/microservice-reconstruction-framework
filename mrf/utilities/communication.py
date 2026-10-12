@@ -27,6 +27,49 @@ Equal to the name of the service aspect a technology model of the LEMMA side
 declares, because that is how a reconstructed annotation becomes an aspect.
 """
 
+SERVER_ENDPOINT = "ServerEndpoint"
+"""Meta-data name of a port a service itself answers on.
+
+One entry per connector rather than one per service: Spring configures a main
+connector and, where ``management.server.port`` is set, a second one, and the
+two may differ in whether they use TLS. The task document asked for an
+``additionalPlaintextPort`` field on a single record; a record per connector
+says the same thing, generalises to a third connector, and needs no field whose
+meaning depends on another record's.
+"""
+
+CONNECTOR = "connector"
+"""Key naming which connector an endpoint belongs to."""
+
+PORT = "port"
+PROTOCOL = "protocol"
+TLS_ENABLED = "tlsEnabled"
+CLIENT_AUTH = "clientAuth"
+VALUE_SOURCE = "valueSource"
+
+MAIN_CONNECTOR = "server"
+MANAGEMENT_CONNECTOR = "management"
+
+SERVER_PORT = "server.port"
+SERVER_SSL_PREFIX = "server.ssl."
+MANAGEMENT_PORT = "management.server.port"
+MANAGEMENT_SSL_PREFIX = "management.server.ssl."
+
+SSL_ENABLED = "enabled"
+SSL_CLIENT_AUTH = "client-auth"
+SSL_KEY_STORE = "key-store"
+SSL_BUNDLE = "bundle"
+"""Spring property names under a connector's ``ssl.`` prefix.
+
+``key-store`` and ``bundle`` matter because Spring switches TLS on when either
+is configured: ``server.ssl.enabled`` defaults to true, so a key store without
+it is still a TLS connector.
+"""
+
+DEFAULT_HTTP_PORT = "8080"
+"""Port Spring listens on when nothing configures one."""
+
+
 # Keys of a ServiceCall entry
 TARGET = "target"
 TARGET_KIND = "targetKind"

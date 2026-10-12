@@ -1,0 +1,24 @@
+{
+  "Secured": {
+    "transport": null,
+    "calls": [],
+    "endpoints": [],
+    "server": [
+      {
+        "clientAuth": "need",
+        "connector": "server",
+        "port": "8443",
+        "protocol": "https",
+        "tlsEnabled": "true",
+        "valueSource": "src/secured/src/main/resources/application.properties"
+      },
+      {
+        "connector": "management",
+        "port": "9001",
+        "protocol": "http",
+        "tlsEnabled": "false",
+        "valueSource": "src/secured/src/main/resources/application.properties"
+      }
+    ]
+  }
+}

@@ -2,7 +2,16 @@
   "Backend": {
     "transport": null,
     "calls": [],
-    "endpoints": []
+    "endpoints": [],
+    "server": [
+      {
+        "connector": "server",
+        "port": "8443",
+        "protocol": "https",
+        "tlsEnabled": "true",
+        "valueSource": "src/backend/src/main/resources/application.properties"
+      }
+    ]
   },
   "Gateway": {
     "transport": "tls",
@@ -45,6 +54,15 @@
         "targetQualifiedName": "com.example.backend.Backend",
         "technology": "Feign",
         "verb": "GetMapping"
+      }
+    ],
+    "server": [
+      {
+        "connector": "server",
+        "port": "8080",
+        "protocol": "http",
+        "tlsEnabled": "false",
+        "valueSource": "src/gateway/src/main/resources/application.properties"
       }
     ]
   }

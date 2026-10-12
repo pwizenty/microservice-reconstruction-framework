@@ -15,6 +15,15 @@
         "technology": "RestTemplate"
       }
     ],
-    "endpoints": []
+    "endpoints": [],
+    "server": [
+      {
+        "connector": "server",
+        "port": "8080",
+        "protocol": "http",
+        "tlsEnabled": "false",
+        "valueSource": "src/service/src/main/resources/application.properties"
+      }
+    ]
   }
 }

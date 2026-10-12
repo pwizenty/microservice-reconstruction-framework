@@ -24,6 +24,7 @@ from mrf.plugins.service.communication.configuration import (
 )
 from mrf.plugins.service.communication.urls import is_schema_url
 from mrf.utilities.communication import (
+    SERVER_ENDPOINT,
     SERVICE_CALL,
     SERVICE_CALL_ENDPOINT,
     SERVICE_COMMUNICATION_TRANSPORT,
@@ -73,6 +74,14 @@ def reconstruct_communication(fixture: pathlib.Path) -> dict:
                 dict(sorted(data.values.items()))
                 for data in microservice.data
                 if data.name == SERVICE_CALL_ENDPOINT
+            ],
+            # What the service itself answers on, which is the other half of
+            # the smell: a plaintext caller matters because the callee accepts
+            # plaintext.
+            "server": [
+                dict(sorted(data.values.items()))
+                for data in microservice.data
+                if data.name == SERVER_ENDPOINT
             ],
         }
     return dict(sorted(services.items()))
