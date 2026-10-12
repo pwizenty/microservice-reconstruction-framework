@@ -41,6 +41,10 @@ Before claiming a task is done: ruff, mypy and pytest must pass. Show the output
 Dependency direction: plugins → modules/utilities; repositories → modules.
 `modules/` must never import from plugins or repositories.
 
+## Planned work
+Backlog across both repositories: @docs/backlog.md – what is identified but not
+done, what each item needs, and which items wait on a decision.
+
 ## Architecture decisions
 Index: @docs/adr/README.md
 - Do not contradict an **Accepted** ADR. If a change requires it, stop and
