@@ -9,7 +9,7 @@ something other than the order it was written in. Items marked **decision**
 need an answer before they can be started; items marked **blocked** cannot be
 tested against any system available here.
 
-Last reviewed 2026-10-09.
+Last reviewed 2026-10-12.
 
 ## Done, for context
 
@@ -24,6 +24,8 @@ So the list below reads as the remainder rather than as the whole picture.
 | gRPC and Node components | hand-written proto3 parser; Node facts without a JavaScript parser |
 | Headless model generation | byte-identical to the wizard |
 | Data model diagrams | LEMMA, `de.fhdo.lemma.data.datadsl.diagram`, verified in Eclipse |
+| Operation model diagrams | LEMMA, `de.fhdo.lemma.operationdsl.diagram`, verified in Eclipse |
+| Server-side communication facts | **A1** below: ports, protocol, TLS, client auth, end to end into a LEMMA aspect |
 | Service model diagrams | LEMMA, `de.fhdo.lemma.servicedsl.diagram`, verified in Eclipse |
 
 ## A. Security smell: the rest of the facts
@@ -34,7 +36,7 @@ document's order.
 
 | # | Fact | Needs | Size |
 |---|---|---|---|
-| A1 | Server `port`, `protocol`, `tlsEnabled`, `clientAuth`, `additionalPlaintextPort`, `valueSource` | nothing new — `Data` holds one flat entry per port | small |
+| ~~A1~~ | ~~Server `port`, `protocol`, `tlsEnabled`, `clientAuth`, `valueSource`~~ | **done.** One `ServerEndpoint` record per connector rather than an `additionalPlaintextPort` field, and a non-single-valued LEMMA aspect so a second connector is representable | — |
 | A2 | `clientCertificateConfigured`, `verificationWeakened` | name-based detection of `TrustAllStrategy`, `NoopHostnameVerifier`, `InsecureTrustManagerFactory`; SSL bundle and `SSLContext` analysis | medium |
 | A3 | Spring relaxed binding (`CUSTOMERCORE_BASEURL` → `customercore.baseURL`) | an explicit name mapping; only needed once the host matters | small |
 | A4 | Mesh `meshType`, `sidecarInjected`, `peerAuthenticationMode`, `destinationRuleTlsMode` | reading `kubernetes/manifests/**`, which MRF does not do at all today | large |
@@ -43,8 +45,15 @@ document's order.
 | A7 | Several evidence records per fact | a nested structure, which `Data.values` cannot hold — **this is where a fourth collection and an ADR become necessary** | large |
 | A8 | gRPC `usePlaintext()`, messaging `amqp://` and Kafka `security.protocol` | further detectors — **blocked**: absent from every sample system available here | medium |
 
-**A1 is the obvious next step.** It is the cheapest, it needs no new mechanism,
-and it completes the client/server pair of which only the client half exists.
+**A1 is done.** It needed no new mechanism, and it completes the client/server
+pair of which only the client half existed. **A2 is now the cheapest step**: the
+client-certificate and weakened-verification facts, by name-based detection of
+`TrustAllStrategy`, `NoopHostnameVerifier` and `InsecureTrustManagerFactory`.
+
+Worth knowing before planning the rest: **neither sample system configures TLS
+at all.** Eleven services between Lakeside Mutual and park-and-charge, every one
+a plaintext main connector and no management port. So every TLS-positive path is
+reachable only through a fixture, and A2's positive cases will be too.
 
 A7 is the one that forces an architectural decision rather than an addition:
 the flat `Data.values` is the reason a fact can carry only one piece of

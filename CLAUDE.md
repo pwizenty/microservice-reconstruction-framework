@@ -25,7 +25,8 @@ Before claiming a task is done: ruff, mypy and pytest must pass. Show the output
   - `data/java/` – domain data from JPA entities; `service/spring/` – services/REST interfaces
   - `operation/docker/` – operation nodes from Compose/Dockerfiles (ADR-0008); needs the system root as `-t`
   - `service/communication/` – outgoing calls of a service and the transport they use,
-    as meta-data on the microservice (ADR-0009); one detector per client technology
+    and the ports the service itself answers on, as meta-data on the microservice
+    (ADR-0009); one detector per client technology, `server.py` for the ports
   - `data/protobuf/`, `service/protobuf/` – a gRPC contract: messages into the domain
     phase, service and rpcs into the service phase; one selection (`Protobuf`) feeds both
   - `service/node/` – what a Node service serves, from `package.json` and its own

@@ -27,18 +27,24 @@ from mrf.plugins.service.communication.detectors import (
     DetectionContext,
     ServiceCall,
 )
+from mrf.plugins.service.communication.server import ServerEndpoint, server_endpoints
 from mrf.utilities.command_line import SourceFile
 from mrf.utilities.communication import (
     ARTIFACT_TYPE,
+    CLIENT_AUTH,
+    CONNECTOR,
     FILE,
     LINE,
     LOCAL_HOSTS,
     METHOD,
     PATH,
+    PORT,
     PROFILE,
     PROPERTY,
+    PROTOCOL,
     RESOLVED_URL,
     SCHEME,
+    SERVER_ENDPOINT,
     SERVICE_CALL,
     SERVICE_CALL_ENDPOINT,
     SERVICE_COMMUNICATION_TRANSPORT,
@@ -49,7 +55,9 @@ from mrf.utilities.communication import (
     TECHNOLOGY,
     TEST_CLASS_SUFFIXES,
     TEST_PATH_PARTS,
+    TLS_ENABLED,
     TRANSPORT,
+    VALUE_SOURCE,
     VERB,
     Scheme,
     TargetKind,
@@ -145,6 +153,13 @@ class CommunicationPlugin(Plugin):
             module = module_of(microservice.origin_file)
             if module is None:
                 continue
+
+            # Before the calls, and not inside the guard below: a service that
+            # calls nothing still answers on a port, and whether that port uses
+            # TLS is the other half of the smell. CustomerCore of Lakeside
+            # Mutual is exactly that service.
+            microservice.data.extend(self.__to_server_data(module))
+
             calls = self.__deduplicate(self.calls.get(module, []))
             if not calls:
                 continue
@@ -165,6 +180,48 @@ class CommunicationPlugin(Plugin):
                 microservice.data.append(transport)
 
         return microservices
+
+    def __to_server_data(self, module: str) -> list[Data]:
+        """The ports a service answers on, as one meta-data entry each.
+
+        A module with no configuration at all yields nothing rather than
+        Spring's default port: the service may not be a Spring service, and
+        claiming a port it was never configured with would be an invention.
+
+        Args:
+            module (str): Module directory of the service
+
+        Returns:
+            [Data]: One entry per connector
+        """
+        configuration = self.configurations.get(module)
+        if configuration is None:
+            return []
+        return [
+            self.__from_endpoint(endpoint)
+            for endpoint in server_endpoints(configuration)
+        ]
+
+    def __from_endpoint(self, endpoint: ServerEndpoint) -> Data:
+        """One connector as meta-data.
+
+        ``tlsEnabled`` is a string because the Mongo seam carries a flat
+        ``Map<String, String>`` (ADR-0009), and the LEMMA side turns the text
+        back into a boolean where a technology model asks for one.
+        """
+        data = Data(SERVER_ENDPOINT)
+        values = {
+            CONNECTOR: endpoint.connector,
+            PORT: endpoint.port,
+            PROTOCOL: endpoint.protocol,
+            TLS_ENABLED: str(endpoint.tls_enabled).lower(),
+        }
+        if endpoint.client_auth is not None:
+            values[CLIENT_AUTH] = endpoint.client_auth
+        if endpoint.value_source is not None:
+            values[VALUE_SOURCE] = endpoint.value_source
+        data.values = values
+        return data
 
     def __known_targets(
         self, microservices: list[Microservice]
