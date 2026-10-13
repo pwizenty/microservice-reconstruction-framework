@@ -30,6 +30,12 @@ So the list below reads as the remainder rather than as the whole picture.
 
 ## A. Security smell: the rest of the facts
 
+The smell is **Non-Secured Service-to-Service Communications**, §3.7 of Ponce
+et al. (2022) — see `security-smells.md` for the paper's ten smells, their
+refactorings, and what each would need from the reconstruction. The fact list
+below comes from Philip's task document rather than from the paper, which is why
+some names do not appear there.
+
 One fact is reconstructed today. `s2s-communication-plugin-plan.md` §6 lists the
 others; this is them, ordered by what they cost rather than by the task
 document's order.
@@ -43,12 +49,18 @@ document's order.
 | A5 | Resolved URL and target identity, via Compose `environment`/`env_file`, Kubernetes `env`, ConfigMaps | the operation phase's results — so a fourth phase, or a second method like `assign_deployed_services` | large |
 | A6 | One link per profile, with the active one marked | profile-specific files plus `SPRING_PROFILES_ACTIVE` from the deployment | medium |
 | A7 | Several evidence records per fact | a nested structure, which `Data.values` cannot hold — **this is where a fourth collection and an ADR become necessary** | large |
-| A8 | gRPC `usePlaintext()`, messaging `amqp://` and Kafka `security.protocol` | further detectors — **blocked**: absent from every sample system available here | medium |
+| A8a | **Asynchronous links** — JMS/ActiveMQ producers and consumers, the queue and the broker's transport | planned in `async-communication-plan.md`; six messaging interactions in Lakeside Mutual, none reconstructed today | medium |
+| A8b | gRPC client calls, Kafka `security.protocol` | further detectors — **blocked**: absent from every sample system available here | medium |
 
 **A1 is done.** It needed no new mechanism, and it completes the client/server
 pair of which only the client half existed. **A2 is now the cheapest step**: the
 client-certificate and weakened-verification facts, by name-based detection of
 `TrustAllStrategy`, `NoopHostnameVerifier` and `InsecureTrustManagerFactory`.
+
+**A8a is now the next step rather than A2**: a detection rule for smell 3.7 has
+to see every interaction, and the six messaging links of Lakeside Mutual are
+missing from the facts entirely — a false negative in the system the rule is
+meant to judge. See `async-communication-plan.md`.
 
 Worth knowing before planning the rest: **neither sample system configures TLS
 at all.** Eleven services between Lakeside Mutual and park-and-charge, every one
