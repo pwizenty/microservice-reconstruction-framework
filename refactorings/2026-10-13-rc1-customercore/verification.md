@@ -1,0 +1,54 @@
+# Verification: rc1-customercore
+
+**Partial.** The verification step of ADR-0010 - re-reconstruct, re-detect,
+confirm the system starts - does not exist yet (step 6 of
+`../../lemma/docs/smell-resolution-plan.md`). What is recorded here is what
+could be checked without it, so this is **not** evidence that the smell is
+resolved. It is evidence that the patch is of the right shape and does not
+violate the constraints.
+
+## Checked independently of the proposal
+
+| Check | Result |
+|---|---|
+| Patch applies to a clean checkout of the target | ✅ `git apply --check` on a fresh worktree |
+| No `.services` / `.data` / `.operation` edited | ✅ none |
+| No weakened verification | ✅ no `TrustAllStrategy`, `NoopHostnameVerifier`, `InsecureTrustManagerFactory`, `rejectUnauthorized:false` |
+| Key material not committed | ✅ present on disk, matched by the new `.gitignore` rules, absent from `git status` |
+| Server reconstructs as TLS | ✅ `server.ssl.enabled=true` with key store and trust store |
+| Mutual, not merely TLS | ✅ `server.ssl.client-auth=need` |
+| All callers on `https` | ✅ 4 of 4 `customercore.baseURL` values, including the test profile |
+| Compiles and tests pass | ✅ `customer-core`: 26 tests, 0 failures, BUILD SUCCESS |
+
+## Claimed by the proposal, not independently re-run
+
+Recorded because they are checkable later, not because they are accepted:
+test runs in the other three services (19, 12, 10), a live mutual-TLS handshake
+against a started Customer Core, a handshake *without* a client certificate
+being rejected with alert 40, and HTTP 200 from all three callers over mutual
+TLS. See `notes.md`.
+
+## Not verified, and known to be incomplete
+
+- **`generate-certificates.sh` was never executed as a file.** The invocation's
+  allowlist omitted `Bash(bash:*)` and `Bash(chmod:*)`, so every `keytool` and
+  `openssl` call was run individually instead. The key material is real, but the
+  script's own control flow is unrun and it carries no executable bit. **This is
+  a defect in the invocation, not in the patch**; the allowlist was widened for
+  the next proposal.
+- **Docker Compose was not brought up**, so the volume mounts and the
+  `https://customer-core:8110` addresses are reasoned about rather than observed.
+- **The Kubernetes manifests now contradict the application.** Three still carry
+  `CUSTOMERCORE_BASEURL=http://customer-core:8110`. Correctly left alone - MRF
+  does not read manifests (backlog A4) - but the system is now inconsistent
+  across deployment paths.
+- **Spring Boot Admin can no longer scrape the Customer Core**, whose actuator
+  endpoints are now behind mutual TLS while the admin server presents no client
+  certificate.
+
+## Worth noting
+
+The patch changed `CUSTOMERCORE_BASEURL` in `docker-compose.yml`, which reaches
+`customercore.baseURL` through Spring's relaxed binding. MRF does not resolve
+relaxed binding yet (backlog **A3**), so this part of the patch is more complete
+than the toolchain can currently verify.

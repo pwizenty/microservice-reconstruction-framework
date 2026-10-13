@@ -1,0 +1,949 @@
+diff --git a/.gitignore b/.gitignore
+index 557f204..2c98ea0 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -9,6 +9,13 @@ activemq-data/
+ 
+ *.db
+ 
++# Development key material produced by ./generate-certificates.sh. Generated,
++# never committed: the CA private key lives in here.
++certs/
++*.p12
++*.jks
++*.csr
++
+ _cacache/
+ _logs/
+ _npx/
+diff --git a/FAQ.md b/FAQ.md
+index 1fb9bec..b76a8ee 100644
+--- a/FAQ.md
++++ b/FAQ.md
+@@ -13,7 +13,17 @@ We plan to provide a table that gives an overview here, with links to API doc as
+ You can send a test request to the application or use the [Spring Boot Admin application](spring-boot-admin/README.md). 
+ 
+ ### Customer Core
+-Run the application with `mvn spring-boot:run` and then check the state with `curl --header 'Authorization: Bearer b318ad736c6c844b' http://localhost:8110/customers?limit=1` (after the application has started). The curl command should return a customer:
++Run the application with `mvn spring-boot:run` and then check the state with the command below (after the application has started). The Customer Core requires mutual TLS, so `curl` has to present a client certificate and verify the server against the development CA; both come from `certs/`, produced by `generate-certificates.sh`:
++
++```
++curl --header 'Authorization: Bearer b318ad736c6c844b' \
++  --cacert ../certs/ca.crt \
++  --cert ../certs/policy-management-backend.crt.pem \
++  --key ../certs/policy-management-backend.key \
++  'https://localhost:8110/customers?limit=1'
++```
++
++The curl command should return a customer:
+ 
+ ```json
+ {
+@@ -89,13 +99,17 @@ Expected result:
+ All Spring Boot backends also offer an `/actuator/health` endpoint that returns whether the service is UP or not:
+ 
+ ```
+-curl http://localhost:8110/actuator/health 
++curl http://localhost:8090/actuator/health
+ 
+ {
+   "status" : "UP"
+ }                         
+ ```
+ 
++For the Customer Core, add the `--cacert`, `--cert` and `--key` options shown
++above and use `https://localhost:8110/actuator/health`; it accepts only callers
++that present a client certificate.
++
+ ## I'm getting a Connection refused: connect exception on startup 
+ 
+ Don't worry if you're getting an exception about a refused connection on startup:
+diff --git a/README.md b/README.md
+index ea91460..35ff443 100644
+--- a/README.md
++++ b/README.md
+@@ -56,6 +56,7 @@ Detailed setup instructions can be found in each application's README file. To c
+ 1. Install [Node](https://nodejs.org/en/). Version 12 or later is required. You can check the currently installed version by running `node --version`.
+ 1. Install Python. We don't use Python ourselves, but some Node.js packages require native addons that are built using node-gyp, which requires Python. See the [node-gyp README for details on which Python version to install](https://github.com/nodejs/node-gyp#on-unix).
+ 1. Install Maven (see [https://maven.apache.org](https://maven.apache.org) for installation instructions).
++1. Generate the development certificates by running `bash ./generate-certificates.sh`. The Customer Core serves its API over mutual TLS, so it and its three callers each need a key store and a trust store. These are generated rather than committed, because they contain private keys; they are for development only. The `run_all_applications.sh` and `run_customer_management_applications.sh` scripts run this step for you.
+ 1. Run the `run_all_applications` script suitable for your platform. Note that the frontend applications might be running before the backends are ready. In that case, just reload the page in the browser.
+ 
+ If the script exits, one of the applications could not be started. For troubleshooting, we recommend to start the applications individually. Note that you don't need to start all applications. The overview diagram above can be used to figure out the dependencies of each service. 
+@@ -68,7 +69,7 @@ consult the README of the corresponding component:
+ | [Customer Self-Service Backend](customer-self-service-backend) | 8080 (HTTP resource API) |
+ | [Policy Management Backend](policy-management-backend) | 8090 (HTTP resource API)<br/>61613 (ActiveMQ broker)<br/>61616 (ActiveMQ broker) |
+ | [Customer Management Backend](customer-management-backend) | 8100 (HTTP resource API) |
+-| [Customer Core](customer-core) | 8110 (HTTP resource API) |
++| [Customer Core](customer-core) | 8110 (HTTPS resource API, mutual TLS) |
+ | [Customer Self-Service Frontend](customer-self-service-frontend) | 3000 (Web server) |
+ | [Policy Management Frontend](policy-management-frontend) | 3010 (Web server) |
+ | [Customer Management Frontend](customer-management-frontend) | 3020 (Web server) |
+@@ -82,7 +83,7 @@ All projects come with Dockerfiles that can be used to run the services as Docke
+ 
+ ## Data Stores
+ 
+-Each backend service has its own data store. The Spring-JPA based applications all use the H2 relational database. By default, all data will be lost during restarts, please see the individual README files to enable durable persistency. The backend services also contain the H2 Console to browse the database. It can be found at `/console`. For example, for the Customer Core, the address is [http://localhost:8110/console](http://localhost:8110/console).
++Each backend service has its own data store. The Spring-JPA based applications all use the H2 relational database. By default, all data will be lost during restarts, please see the individual README files to enable durable persistency. The backend services also contain the H2 Console to browse the database. It can be found at `/console`. For example, for the Customer Core, the address is [https://localhost:8110/console](https://localhost:8110/console) — the Customer Core requires mutual TLS, so a browser has to be given a client certificate from `certs/` to reach it.
+ 
+ ## Frequently Asked Questions and Troubleshooting
+ 
+diff --git a/REFACTORING-NOTES.md b/REFACTORING-NOTES.md
+new file mode 100644
+index 0000000..6c5e004
+--- /dev/null
++++ b/REFACTORING-NOTES.md
+@@ -0,0 +1,185 @@
++# Refactoring notes: mutual TLS for the Customer Core and its callers
++
++Resolves the security smell *Non-Secured Service-to-Service Communications*
++(Ponce et al. 2022, JSS 192:111393, §3.7) by applying the refactoring the paper
++prescribes, **Use Mutual TLS**, to root cause 1 of 2 in this system: the Customer
++Core's single plaintext connector and the three services that call it.
++
++Root cause 2, the ActiveMQ broker in the Policy Management Backend, is **not**
++touched here. `policymanagement.stompBrokerBindAddress` and
++`policymanagement.tcpBrokerBindAddress` are deliberately left on `stomp://` and
++`tcp://`, and so is the Customer Self-Service Backend's copy of the latter.
++
++## What changed
++
++### The server: Customer Core
++
++`customer-core/src/main/resources/application.properties`
++
++The connector on port 8110 is now HTTPS with client authentication required.
++The port is unchanged, so no caller address and no deployment descriptor had to
++move for that reason alone.
++
++```properties
++server.ssl.enabled=true
++server.ssl.key-store=file:./certs/customer-core.p12
++server.ssl.key-store-password=changeit
++server.ssl.key-store-type=PKCS12
++server.ssl.key-alias=customer-core
++server.ssl.trust-store=file:./certs/truststore.p12
++server.ssl.trust-store-password=changeit
++server.ssl.trust-store-type=PKCS12
++server.ssl.client-auth=need
++```
++
++`client-auth=need`, not `want`: `want` asks for a certificate and then serves
++the request without one, which secures the channel but authenticates no peer —
++a weaker refactoring than §3.7 cites.
++
++### The three callers
++
++All three now address the Customer Core over `https` and present a client
++certificate. Each needed two changes, the address and the HTTP client.
++
++| Service | Technology | Address | Client |
++| --- | --- | --- | --- |
++| Customer Management Backend | Feign | `customercore.baseURL=https://localhost:8110` | `feign.Client` bean in `CustomerCoreClientConfiguration` |
++| Customer Self-Service Backend | RestTemplate | `customercore.baseURL=https://localhost:8110` | request factory in `DefaultAuthenticatedRestTemplateClient` |
++| Policy Management Backend | RestTemplate | `customercore.baseURL=https://localhost:8110` | request factory in `DefaultAuthenticatedRestTemplateClient` |
++
++Each caller reads its own key store and the shared trust store from four new
++properties, `customercore.tls.keyStore`, `customercore.tls.keyStorePassword`,
++`customercore.tls.trustStore` and `customercore.tls.trustStorePassword` (plus
++optional `...Type` properties defaulting to `PKCS12`). They follow the naming of
++the existing `customercore.baseURL`, so the existing environment-variable
++override mechanism works unchanged: `CUSTOMERCORE_TLS_KEYSTORE` and friends.
++
++`customer-self-service-backend/src/test/resources/application-test.properties`
++carries its own copy of `customercore.baseURL` and was moved to `https` as well.
++No test was disabled and no assertion was weakened.
++
++### Certificates
++
++`generate-certificates.sh` (new) creates one development CA, one shared trust
++store holding only the CA certificate, and one key store per service. Each
++certificate carries the service name, `localhost` and `127.0.0.1` as subject
++alternative names, so the same material works whether the services are started
++individually or under Docker Compose, where peers address each other by service
++name.
++
++The script is committed; its output is not. `certs/`, `*.p12`, `*.jks` and
++`*.csr` were added to `.gitignore`, because the CA private key is created by the
++script and anybody holding it can mint a certificate every service accepts.
++
++The two `run_all_applications*.sh` scripts now invoke it (it is idempotent, so a
++second run reuses an existing set), and the README, the Customer Core README and
++the FAQ were updated.
++
++### Docker Compose
++
++`docker-compose.yml` now passes `https://customer-core:8110` to the three callers
++and mounts each service's own `certs/` directory read-only at `/certs`. The
++containers' working directory is `/`, so the `file:./certs/...` paths in
++`application.properties` resolve to the mounted directory without an override.
++
++## What was assumed
++
++- **Store location.** Every service reads `file:./certs/...`, relative to its
++  own working directory, which is the service directory both for
++  `mvn spring-boot:run` and for the `run_all_applications` scripts. The script
++  therefore writes a copy of each service's own material into
++  `<service>/certs/` in addition to the repository-root `certs/`. Only the root
++  `certs/` holds the CA private key; the per-service copies do not.
++- **One CA, one trust store.** A single trust store holding the CA certificate
++  is used by both ends and in both directions.
++- **Password.** `changeit` throughout, in the properties and in the script.
++  Acceptable for development-only material that is regenerated locally; not a
++  secret worth managing for a sample system.
++- **Client HTTP stack.** No new dependency was added to any service. The two
++  RestTemplate callers use `JdkClientHttpRequestFactory` over the JDK's
++  `java.net.http.HttpClient`, which takes an `SSLContext` directly and verifies
++  the server hostname by default. The Feign caller uses `feign.Client.Default`
++  with an `SSLSocketFactory` from the same `SSLContext` and the JDK's **default**
++  hostname verifier, which is the strict one. Nothing disables verification:
++  there is no `TrustAllStrategy`, no `NoopHostnameVerifier`, no
++  `InsecureTrustManagerFactory`.
++- **The `SSLContext` is built by hand** from the two stores rather than from a
++  Spring `spring.ssl.bundle`. A bundle would be more idiomatic on Boot 3.3, but
++  bundles are registered from properties at context refresh for every profile,
++  whereas the client beans live in `@Profile("default")` configuration classes.
++  Building the context inside those beans keeps `./mvnw test` working without
++  any generated key material present, which is what the existing
++  `@SpringBootTest` suites rely on. The server side uses the classic
++  `server.ssl.*` form for the same reason: Tomcat loads the stores when the
++  connector starts, and the test suites run with a mock web environment.
++
++## What was verified
++
++Everything below was run in this worktree.
++
++- `./mvnw test` passes in all four affected services, unchanged test counts:
++  Customer Core 26, Policy Management Backend 19, Customer Self-Service Backend
++  12, Customer Management Backend 10. No failures, no errors, nothing skipped.
++- The Customer Core starts with `Tomcat initialized with port 8110 (https)`.
++- A handshake **with** a client certificate succeeds and the server certificate
++  verifies against the CA:
++  `openssl s_client -connect localhost:8110 -cert certs/policy-management-backend.crt.pem -key certs/policy-management-backend.key -CAfile certs/ca.crt -brief`
++  → `Verification: OK`, peer `CN=customer-core`.
++- A handshake **without** a client certificate is rejected by the server:
++  the same command without `-cert`/`-key` and with `-tls1_2` ends in
++  `tls alert handshake failure` (alert 40). Client authentication is therefore
++  genuinely required, not merely requested.
++- All three callers were started against the running Customer Core and each
++  returned real data fetched over mutual TLS:
++  - `GET http://localhost:8090/customers?filter=&limit=2&offset=0` → 200, customer list (Policy Management Backend, RestTemplate)
++  - `GET http://localhost:8100/customers?filter=&limit=2&offset=0` → 200, customer list (Customer Management Backend, Feign)
++  - `GET http://localhost:8080/cities/6500` → 200, `{"cities":["Bellinzona"]}` (Customer Self-Service Backend, RestTemplate)
++
++## What could not be verified, and known consequences
++
++- **`generate-certificates.sh` was not executed as a file.** This environment
++  does not permit running a script, so every `keytool` and `openssl` invocation
++  in it was instead executed individually, in the script's order and with the
++  script's arguments; the material under `certs/` and in each service's `certs/`
++  directory is the result, and it is what the live handshake checks below used.
++  The script's control flow — the `--force` branch, the `if [ ! -f ... ]` guards
++  that make it idempotent, and `cd "$(dirname "$0")"` — has therefore been read
++  but not run. It is also committed without the executable bit, because `chmod`
++  was unavailable; that is why the run scripts and the documentation invoke it as
++  `bash ./generate-certificates.sh`, which works either way.
++- **Docker Compose.** The image build and `docker-compose up` were not run here,
++  so the volume mounts and the `https://customer-core:8110` addresses are
++  reasoned about rather than observed. The `file:./certs/...` paths depend on the
++  container's working directory being `/`, which is what the Dockerfiles imply
++  (no `WORKDIR`, jar copied to `.`) but was not executed.
++- **The Kubernetes manifests now disagree with the application.**
++  `kubernetes/manifests/{customer-management,customer-self-service,policy-management}-backend.yaml`
++  still set `CUSTOMERCORE_BASEURL=http://customer-core:8110`, and no manifest
++  mounts the stores. They were left untouched on purpose: manifests are outside
++  the scope of this change and are not read by the verifying toolchain, so a
++  change there could not be shown to work. A Kubernetes deployment needs the
++  stores supplied as secrets and those three values changed to `https`.
++- **Spring Boot Admin can no longer scrape the Customer Core.** The Customer
++  Core registers itself with the admin server and the admin server then polls
++  its actuator endpoints. Those endpoints are now behind mutual TLS, and the
++  admin server presents no client certificate, so the Customer Core will show as
++  down in the admin UI. That monitoring channel is not part of this root cause
++  and fixing it would mean configuring the admin server's reactive web client,
++  so it was left alone. The registration call in the other direction
++  (`spring.boot.admin.client.url`) is still plain HTTP and is likewise untouched.
++- **Windows.** `generate-certificates.sh` is a bash script. The repository's
++  `run_all_applications.bat` and `run_customer_management_applications.bat` have
++  no equivalent step, so a Windows developer has to run the script under a bash
++  shell before using them.
++- **Browser access to the Customer Core.** Swagger UI and the H2 console on port
++  8110 now require a client certificate installed in the browser. The READMEs
++  say so, but this is a real loss of convenience for a teaching sample.
++- **Stale example URLs in Javadoc.** The request and response samples in
++  `customer-core/.../CustomerInformationHolder.java` and
++  `APIKeyAuthenticationManager.java`, the `soap:address` in
++  `customer-core/src/main/resources/countries.wsdl`, and the demo link in
++  `CustomerCoreFrontEndView.html` still read `http://localhost:8110`. They are
++  illustrative text, not configuration, and were left as they were to keep the
++  change reviewable.
++- **Certificate validity is 365 days.** Nothing rotates them; a developer with a
++  year-old checkout has to run the script again with `--force`.
+diff --git a/customer-core/README.md b/customer-core/README.md
+index 7963e19..3254e23 100644
+--- a/customer-core/README.md
++++ b/customer-core/README.md
+@@ -36,11 +36,18 @@ Alternatively, you can download and install the Spring Tool Suite:
+ By default, the Spring Boot application starts on port 8110. If this port is already used by a different application, you can change it in the 
+ `src/main/resources/application.properties` file.
+ 
++The Customer Core serves its API over mutual TLS: the connector is HTTPS and
++`server.ssl.client-auth=need` makes it reject any caller that does not present
++a certificate issued by the development CA. Run `bash ./generate-certificates.sh`
++in the repository root before starting the service; it writes the key store and
++the trust store this service reads from `certs/`. Those stores hold private keys
++and are deliberately not in version control.
++
+ Warnings about a `java.net.ConnectException: Connection refused` can safely be ignored. See the [FAQ](../FAQ.md#im-getting-a-connection-refused-connect-exception-on-startup) for details.
+ 
+ ## Springdoc Open API documentation
+ [Springdoc](https://springdoc.org/) is an automated JSON API documentation tool for APIs built with Spring. 
+-To access the documentation for the Customer Core, go to [http://localhost:8110/swagger-ui/index.html](http://localhost:8110/swagger-ui/index.html). The native Swagger file is available at [http://localhost:8110/v3/api-docs](http://localhost:8110/v3/api-docs).
++To access the documentation for the Customer Core, go to [https://localhost:8110/swagger-ui/index.html](https://localhost:8110/swagger-ui/index.html). The native Swagger file is available at [https://localhost:8110/v3/api-docs](https://localhost:8110/v3/api-docs). Both require a client certificate from `certs/` to be installed in the browser, because the service asks for one.
+ 
+ ## Testing
+ To run the automated tests for the Customer Core, right-click on the project in the Spring Tool 
+diff --git a/customer-core/src/main/resources/application.properties b/customer-core/src/main/resources/application.properties
+index 7cf9721..f13b650 100644
+--- a/customer-core/src/main/resources/application.properties
++++ b/customer-core/src/main/resources/application.properties
+@@ -13,6 +13,23 @@ spring.jpa.hibernate.ddl-auto=create-drop
+ 
+ server.port = 8110
+ 
++# The Customer Core serves its API over mutual TLS. Every caller has to present
++# a certificate issued by the development CA, which is what client-auth=need
++# enforces; "want" would ask for a certificate and then serve the request
++# anyway, which authenticates nobody.
++#
++# The stores are not in version control. Run ./generate-certificates.sh in the
++# repository root once before starting the service.
++server.ssl.enabled=true
++server.ssl.key-store=file:./certs/customer-core.p12
++server.ssl.key-store-password=changeit
++server.ssl.key-store-type=PKCS12
++server.ssl.key-alias=customer-core
++server.ssl.trust-store=file:./certs/truststore.p12
++server.ssl.trust-store-password=changeit
++server.ssl.trust-store-type=PKCS12
++server.ssl.client-auth=need
++
+ management.endpoints.web.exposure.include=*
+ management.info.git.mode=full
+ 
+diff --git a/customer-management-backend/src/main/java/com/lakesidemutual/customermanagement/infrastructure/CustomerCoreClientConfiguration.java b/customer-management-backend/src/main/java/com/lakesidemutual/customermanagement/infrastructure/CustomerCoreClientConfiguration.java
+index 29624da..f9fbe98 100644
+--- a/customer-management-backend/src/main/java/com/lakesidemutual/customermanagement/infrastructure/CustomerCoreClientConfiguration.java
++++ b/customer-management-backend/src/main/java/com/lakesidemutual/customermanagement/infrastructure/CustomerCoreClientConfiguration.java
+@@ -1,20 +1,90 @@
+ package com.lakesidemutual.customermanagement.infrastructure;
+ 
++import java.io.InputStream;
++import java.security.KeyStore;
+ import java.util.Arrays;
+ import java.util.Collection;
+ 
++import javax.net.ssl.HttpsURLConnection;
++import javax.net.ssl.KeyManagerFactory;
++import javax.net.ssl.SSLContext;
++import javax.net.ssl.TrustManagerFactory;
++
++import org.springframework.beans.factory.annotation.Value;
+ import org.springframework.context.annotation.Bean;
+ import org.springframework.context.annotation.Configuration;
++import org.springframework.core.io.Resource;
+ 
++import feign.Client;
+ import feign.RequestInterceptor;
+ 
+ /**
+  * The CustomerCoreClientConfiguration class configures the request interceptors for the CustomerCoreClient.
++ *
++ * It also supplies the Feign client itself, because the Customer Core serves its
++ * API over mutual TLS and rejects callers that do not present a certificate.
++ * The client is therefore built from two stores: the key store holds this
++ * service's own certificate and private key, the trust store holds the CA that
++ * signed the Customer Core's certificate. Both are generated by
++ * ./generate-certificates.sh in the repository root.
+  * */
+ @Configuration
+ public class CustomerCoreClientConfiguration {
++	@Value("${customercore.tls.keyStore}")
++	private Resource keyStore;
++
++	@Value("${customercore.tls.keyStorePassword}")
++	private String keyStorePassword;
++
++	@Value("${customercore.tls.keyStoreType:PKCS12}")
++	private String keyStoreType;
++
++	@Value("${customercore.tls.trustStore}")
++	private Resource trustStore;
++
++	@Value("${customercore.tls.trustStorePassword}")
++	private String trustStorePassword;
++
++	@Value("${customercore.tls.trustStoreType:PKCS12}")
++	private String trustStoreType;
++
+ 	@Bean
+ 	public Collection<RequestInterceptor> interceptors() {
+ 		return Arrays.asList(new APIKeyRequestInterceptor());
+ 	}
++
++	@Bean
++	public Client feignClient() throws Exception {
++		/*
++		 * The JDK's default hostname verifier is passed deliberately: it is the
++		 * strict one, and handing it to Feign keeps HttpsURLConnection's own
++		 * hostname check in place instead of replacing it with something more
++		 * permissive.
++		 */
++		return new Client.Default(mutualTlsContext().getSocketFactory(),
++				HttpsURLConnection.getDefaultHostnameVerifier());
++	}
++
++	private SSLContext mutualTlsContext() throws Exception {
++		KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(
++				KeyManagerFactory.getDefaultAlgorithm());
++		keyManagerFactory.init(load(keyStore, keyStoreType, keyStorePassword),
++				keyStorePassword.toCharArray());
++
++		TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(
++				TrustManagerFactory.getDefaultAlgorithm());
++		trustManagerFactory.init(load(trustStore, trustStoreType, trustStorePassword));
++
++		SSLContext sslContext = SSLContext.getInstance("TLS");
++		sslContext.init(keyManagerFactory.getKeyManagers(), trustManagerFactory.getTrustManagers(), null);
++		return sslContext;
++	}
++
++	private static KeyStore load(Resource resource, String type, String password) throws Exception {
++		KeyStore store = KeyStore.getInstance(type);
++		try (InputStream inputStream = resource.getInputStream()) {
++			store.load(inputStream, password.toCharArray());
++		}
++		return store;
++	}
+ }
+diff --git a/customer-management-backend/src/main/resources/application.properties b/customer-management-backend/src/main/resources/application.properties
+index c5b3129..47d9485 100644
+--- a/customer-management-backend/src/main/resources/application.properties
++++ b/customer-management-backend/src/main/resources/application.properties
+@@ -23,5 +23,19 @@ server.port = 8100
+ management.endpoints.web.exposure.include=*
+ management.info.git.mode=full
+ 
+-customercore.baseURL=http://localhost:8110
++customercore.baseURL=https://localhost:8110
++
++# The Customer Core requires a client certificate, so the Feign client is built
++# from both stores: the key store to prove who we are, the trust store to
++# verify the Customer Core. See CustomerCoreClientConfiguration.
++#
++# The stores are not in version control. Run ./generate-certificates.sh in the
++# repository root once before starting the service.
++customercore.tls.keyStore=file:./certs/customer-management-backend.p12
++customercore.tls.keyStorePassword=changeit
++customercore.tls.keyStoreType=PKCS12
++customercore.tls.trustStore=file:./certs/truststore.p12
++customercore.tls.trustStorePassword=changeit
++customercore.tls.trustStoreType=PKCS12
++
+ spring.boot.admin.client.url = http://localhost:9000
+\ No newline at end of file
+diff --git a/customer-self-service-backend/src/main/java/com/lakesidemutual/customerselfservice/interfaces/configuration/DefaultAuthenticatedRestTemplateClient.java b/customer-self-service-backend/src/main/java/com/lakesidemutual/customerselfservice/interfaces/configuration/DefaultAuthenticatedRestTemplateClient.java
+index 69bcbe6..ce321f9 100644
+--- a/customer-self-service-backend/src/main/java/com/lakesidemutual/customerselfservice/interfaces/configuration/DefaultAuthenticatedRestTemplateClient.java
++++ b/customer-self-service-backend/src/main/java/com/lakesidemutual/customerselfservice/interfaces/configuration/DefaultAuthenticatedRestTemplateClient.java
+@@ -1,16 +1,32 @@
+ package com.lakesidemutual.customerselfservice.interfaces.configuration;
+ 
++import java.io.InputStream;
++import java.net.http.HttpClient;
++import java.security.KeyStore;
+ import java.util.Arrays;
+ 
++import javax.net.ssl.KeyManagerFactory;
++import javax.net.ssl.SSLContext;
++import javax.net.ssl.TrustManagerFactory;
++
+ import org.springframework.beans.factory.annotation.Autowired;
++import org.springframework.beans.factory.annotation.Value;
+ import org.springframework.context.annotation.Bean;
+ import org.springframework.context.annotation.Configuration;
+ import org.springframework.context.annotation.Profile;
++import org.springframework.core.io.Resource;
++import org.springframework.http.client.JdkClientHttpRequestFactory;
+ import org.springframework.web.client.RestTemplate;
+ 
+ /**
+  * Provides a RestTemplate that can be injected into other components. The
+  * RestTemplate uses the configured API Key when making a request.
++ *
++ * The Customer Core serves its API over mutual TLS and rejects callers that do
++ * not present a certificate, so the RestTemplate is built from two stores: the
++ * key store holds this service's own certificate and private key, the trust
++ * store holds the CA that signed the Customer Core's certificate. Both are
++ * generated by ./generate-certificates.sh in the repository root.
+  */
+ @Configuration
+ @Profile("default")
+@@ -18,11 +34,60 @@ public class DefaultAuthenticatedRestTemplateClient {
+ 	@Autowired
+ 	private HeaderRequestInterceptor headerRequestInterceptor;
+ 
++	@Value("${customercore.tls.keyStore}")
++	private Resource keyStore;
++
++	@Value("${customercore.tls.keyStorePassword}")
++	private String keyStorePassword;
++
++	@Value("${customercore.tls.keyStoreType:PKCS12}")
++	private String keyStoreType;
++
++	@Value("${customercore.tls.trustStore}")
++	private Resource trustStore;
++
++	@Value("${customercore.tls.trustStorePassword}")
++	private String trustStorePassword;
++
++	@Value("${customercore.tls.trustStoreType:PKCS12}")
++	private String trustStoreType;
++
+ 	@Bean
+-	public RestTemplate restTemplate() {
++	public RestTemplate restTemplate() throws Exception {
+ 		System.out.println("loading default rest template");
+-		RestTemplate restTemplate = new RestTemplate();
++
++		/*
++		 * The JDK's HTTP client is used because it accepts an SSLContext and
++		 * verifies the server's hostname against its certificate by default.
++		 */
++		HttpClient httpClient = HttpClient.newBuilder()
++				.sslContext(mutualTlsContext())
++				.build();
++		RestTemplate restTemplate = new RestTemplate(new JdkClientHttpRequestFactory(httpClient));
+ 		restTemplate.setInterceptors(Arrays.asList(headerRequestInterceptor));
+ 		return restTemplate;
+ 	}
+-}
+\ No newline at end of file
++
++	private SSLContext mutualTlsContext() throws Exception {
++		KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(
++				KeyManagerFactory.getDefaultAlgorithm());
++		keyManagerFactory.init(load(keyStore, keyStoreType, keyStorePassword),
++				keyStorePassword.toCharArray());
++
++		TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(
++				TrustManagerFactory.getDefaultAlgorithm());
++		trustManagerFactory.init(load(trustStore, trustStoreType, trustStorePassword));
++
++		SSLContext sslContext = SSLContext.getInstance("TLS");
++		sslContext.init(keyManagerFactory.getKeyManagers(), trustManagerFactory.getTrustManagers(), null);
++		return sslContext;
++	}
++
++	private static KeyStore load(Resource resource, String type, String password) throws Exception {
++		KeyStore store = KeyStore.getInstance(type);
++		try (InputStream inputStream = resource.getInputStream()) {
++			store.load(inputStream, password.toCharArray());
++		}
++		return store;
++	}
++}
+diff --git a/customer-self-service-backend/src/main/resources/application.properties b/customer-self-service-backend/src/main/resources/application.properties
+index c6f10e6..5318459 100644
+--- a/customer-self-service-backend/src/main/resources/application.properties
++++ b/customer-self-service-backend/src/main/resources/application.properties
+@@ -42,5 +42,19 @@ management.info.git.mode=full
+ # added to make circuit breaker support work: 
+ spring.main.allow-bean-definition-overriding=true
+ 
+-customercore.baseURL=http://localhost:8110
++customercore.baseURL=https://localhost:8110
++
++# The Customer Core requires a client certificate, so the RestTemplate is built
++# from both stores: the key store to prove who we are, the trust store to
++# verify the Customer Core. See DefaultAuthenticatedRestTemplateClient.
++#
++# The stores are not in version control. Run ./generate-certificates.sh in the
++# repository root once before starting the service.
++customercore.tls.keyStore=file:./certs/customer-self-service-backend.p12
++customercore.tls.keyStorePassword=changeit
++customercore.tls.keyStoreType=PKCS12
++customercore.tls.trustStore=file:./certs/truststore.p12
++customercore.tls.trustStorePassword=changeit
++customercore.tls.trustStoreType=PKCS12
++
+ spring.boot.admin.client.url = http://localhost:9000
+\ No newline at end of file
+diff --git a/customer-self-service-backend/src/test/resources/application-test.properties b/customer-self-service-backend/src/test/resources/application-test.properties
+index 4f8e189..07bb87c 100644
+--- a/customer-self-service-backend/src/test/resources/application-test.properties
++++ b/customer-self-service-backend/src/test/resources/application-test.properties
+@@ -1,4 +1,4 @@
+-customercore.baseURL=http://localhost:8110
++customercore.baseURL=https://localhost:8110
+ spring.config.import: optional:configserver:http://localhost:8888
+ spring.datasource.url = jdbc:h2:mem:test
+ spring.jpa.properties.hibernate.dialect = org.hibernate.dialect.H2Dialect
+\ No newline at end of file
+diff --git a/docker-compose.yml b/docker-compose.yml
+index bd0728a..5313ba3 100644
+--- a/docker-compose.yml
++++ b/docker-compose.yml
+@@ -33,6 +33,12 @@ services:
+     image: lakesidemutual/customer-core
+     environment:
+       - "SPRING_BOOT_ADMIN_CLIENT_URL=http://spring-boot-admin:9000"
++    # The Customer Core serves its API over mutual TLS. The key and trust
++    # stores are generated by ./generate-certificates.sh and mounted here,
++    # because they are deliberately not part of the image. The container's
++    # working directory is /, so ./certs in application.properties is /certs.
++    volumes:
++      - "./customer-core/certs:/certs:ro"
+     ports:
+       - "8110:8110"
+ 
+@@ -42,8 +48,10 @@ services:
+     depends_on:
+       - customer-core
+     environment:
+-      - "CUSTOMERCORE_BASEURL=http://customer-core:8110"
++      - "CUSTOMERCORE_BASEURL=https://customer-core:8110"
+       - "SPRING_BOOT_ADMIN_CLIENT_URL=http://spring-boot-admin:9000"
++    volumes:
++      - "./customer-management-backend/certs:/certs:ro"
+     ports:
+       - "8100:8100"
+ 
+@@ -65,8 +73,10 @@ services:
+     depends_on:
+       - customer-core
+     environment:
+-      - "CUSTOMERCORE_BASEURL=http://customer-core:8110"
++      - "CUSTOMERCORE_BASEURL=https://customer-core:8110"
+       - "SPRING_BOOT_ADMIN_CLIENT_URL=http://spring-boot-admin:9000"
++    volumes:
++      - "./policy-management-backend/certs:/certs:ro"
+     ports:
+       - "8090:8090"
+       - "61613:61613"
+@@ -89,9 +99,11 @@ services:
+       - customer-core
+       - policy-management-backend
+     environment:
+-      - "CUSTOMERCORE_BASEURL=http://customer-core:8110"
++      - "CUSTOMERCORE_BASEURL=https://customer-core:8110"
+       - "POLICYMANAGEMENT_TCPBROKERBINDADDRESS=tcp://policy-management-backend:61616"
+       - "SPRING_BOOT_ADMIN_CLIENT_URL=http://spring-boot-admin:9000"
++    volumes:
++      - "./customer-self-service-backend/certs:/certs:ro"
+     ports:
+       - "8080:8080"
+ 
+diff --git a/generate-certificates.sh b/generate-certificates.sh
+new file mode 100644
+index 0000000..ba3e574
+--- /dev/null
++++ b/generate-certificates.sh
+@@ -0,0 +1,140 @@
++#!/usr/bin/env bash
++#
++# Generates throwaway certificates for mutual TLS between the Lakeside Mutual
++# services.
++#
++# DEVELOPMENT ONLY. The CA private key is created right here and is trusted by
++# every service, so anybody who can read this directory can mint a certificate
++# that every service accepts. Never use the output of this script anywhere but
++# on a development machine.
++#
++# The output is a build product and is excluded from version control (see
++# .gitignore). Run the script once before starting the services:
++#
++#   ./generate-certificates.sh
++#
++# It is idempotent: a second run reuses the existing CA and only regenerates
++# what is missing. Pass --force to throw everything away and start over.
++#
++set -euo pipefail
++
++cd "$(dirname "$0")"
++
++PASS=changeit
++OUT=certs
++VALIDITY=365
++
++# The Customer Core is the TLS server; the other three are its clients. Each
++# name is both a Docker Compose service name and the directory the service is
++# started from, which is why the certificates are issued for it.
++SERVICES="customer-core customer-management-backend customer-self-service-backend policy-management-backend"
++
++if [ "${1:-}" = "--force" ]; then
++    echo "--force given, removing previously generated material"
++    rm -rf "$OUT"
++    for service in $SERVICES; do
++        rm -rf "$service/certs"
++    done
++fi
++
++mkdir -p "$OUT"
++
++# One CA for the whole system.
++if [ ! -f "$OUT/ca.p12" ]; then
++    echo "Creating the development CA"
++    keytool -genkeypair -alias ca -keyalg RSA -keysize 2048 -validity "$VALIDITY" \
++        -dname "CN=Lakeside Mutual Development CA, OU=Lakeside Mutual, O=Lakeside Mutual" \
++        -ext "bc:c=ca:true,pathlen:0" -ext "ku:c=keyCertSign,cRLSign" \
++        -keystore "$OUT/ca.p12" -storetype PKCS12 \
++        -storepass "$PASS" -keypass "$PASS"
++
++    keytool -exportcert -alias ca -rfc \
++        -keystore "$OUT/ca.p12" -storetype PKCS12 -storepass "$PASS" \
++        -file "$OUT/ca.crt"
++fi
++
++# A single trust store, holding only the CA certificate. Every peer uses it to
++# verify every other peer, in both directions: the server verifies the client
++# certificate with it just as the client verifies the server certificate.
++if [ ! -f "$OUT/truststore.p12" ]; then
++    echo "Creating the shared trust store"
++    keytool -importcert -noprompt -alias ca -file "$OUT/ca.crt" \
++        -keystore "$OUT/truststore.p12" -storetype PKCS12 -storepass "$PASS"
++fi
++
++for service in $SERVICES; do
++    if [ ! -f "$OUT/$service.p12" ]; then
++        echo "Creating the key store for $service"
++
++        # The subject alternative names have to cover every address a peer may
++        # use: the Docker Compose service name, and localhost when the services
++        # are started individually on the developer's machine.
++        san="dns:$service,dns:localhost,ip:127.0.0.1"
++
++        keytool -genkeypair -alias "$service" -keyalg RSA -keysize 2048 \
++            -validity "$VALIDITY" \
++            -dname "CN=$service, OU=Lakeside Mutual, O=Lakeside Mutual" \
++            -ext "san=$san" \
++            -keystore "$OUT/$service.p12" -storetype PKCS12 \
++            -storepass "$PASS" -keypass "$PASS"
++
++        keytool -certreq -alias "$service" \
++            -keystore "$OUT/$service.p12" -storetype PKCS12 -storepass "$PASS" \
++            -file "$OUT/$service.csr"
++
++        # Sign with the CA. Both extendedKeyUsage bits are set because every
++        # certificate is used in both roles: the Customer Core is a server to
++        # its three callers and a client to the Spring Boot Admin server, and
++        # the callers present their certificates as clients.
++        keytool -gencert -alias ca -infile "$OUT/$service.csr" \
++            -ext "san=$san" \
++            -ext "eku=serverAuth,clientAuth" \
++            -validity "$VALIDITY" \
++            -keystore "$OUT/ca.p12" -storetype PKCS12 -storepass "$PASS" \
++            -rfc -outfile "$OUT/$service.crt"
++
++        # The CA certificate has to be in the key store before the signed reply
++        # can be imported, otherwise keytool cannot build the chain.
++        keytool -importcert -noprompt -alias ca -file "$OUT/ca.crt" \
++            -keystore "$OUT/$service.p12" -storetype PKCS12 -storepass "$PASS"
++        keytool -importcert -noprompt -alias "$service" -file "$OUT/$service.crt" \
++            -keystore "$OUT/$service.p12" -storetype PKCS12 -storepass "$PASS"
++
++        rm -f "$OUT/$service.csr"
++    fi
++
++    # Each service reads its stores from ./certs relative to its own working
++    # directory, which is the service directory both for "mvn spring-boot:run"
++    # and for the run_all_applications scripts.
++    mkdir -p "$service/certs"
++    cp "$OUT/$service.p12" "$service/certs/$service.p12"
++    cp "$OUT/truststore.p12" "$service/certs/truststore.p12"
++    cp "$OUT/ca.crt" "$service/certs/ca.crt"
++done
++
++# PEM copies of the Customer Core's own material, for checking the handshake
++# with "openssl s_client" without having to unpack a PKCS#12 store first.
++if command -v openssl >/dev/null 2>&1; then
++    for service in $SERVICES; do
++        if [ ! -f "$OUT/$service.key" ]; then
++            openssl pkcs12 -in "$OUT/$service.p12" -passin "pass:$PASS" \
++                -nocerts -nodes -out "$OUT/$service.key" >/dev/null 2>&1
++            openssl pkcs12 -in "$OUT/$service.p12" -passin "pass:$PASS" \
++                -clcerts -nokeys -out "$OUT/$service.crt.pem" >/dev/null 2>&1
++        fi
++    done
++fi
++
++echo
++echo "Done. Generated material is in ./$OUT and copied into each service's"
++echo "certs/ directory. The store password is '$PASS'."
++echo
++echo "To check that mutual TLS actually handshakes once the Customer Core runs:"
++echo
++echo "  openssl s_client -connect localhost:8110 \\"
++echo "      -cert $OUT/policy-management-backend.crt.pem \\"
++echo "      -key $OUT/policy-management-backend.key \\"
++echo "      -CAfile $OUT/ca.crt"
++echo
++echo "Mutual TLS works when the server asks for a certificate, accepts the one"
++echo "presented, and the handshake ends with 'Verify return code: 0'."
+diff --git a/policy-management-backend/src/main/java/com/lakesidemutual/policymanagement/interfaces/configuration/DefaultAuthenticatedRestTemplateClient.java b/policy-management-backend/src/main/java/com/lakesidemutual/policymanagement/interfaces/configuration/DefaultAuthenticatedRestTemplateClient.java
+index 045bd80..dcc9d4f 100644
+--- a/policy-management-backend/src/main/java/com/lakesidemutual/policymanagement/interfaces/configuration/DefaultAuthenticatedRestTemplateClient.java
++++ b/policy-management-backend/src/main/java/com/lakesidemutual/policymanagement/interfaces/configuration/DefaultAuthenticatedRestTemplateClient.java
+@@ -1,16 +1,32 @@
+ package com.lakesidemutual.policymanagement.interfaces.configuration;
+ 
++import java.io.InputStream;
++import java.net.http.HttpClient;
++import java.security.KeyStore;
+ import java.util.Arrays;
+ 
++import javax.net.ssl.KeyManagerFactory;
++import javax.net.ssl.SSLContext;
++import javax.net.ssl.TrustManagerFactory;
++
+ import org.springframework.beans.factory.annotation.Autowired;
++import org.springframework.beans.factory.annotation.Value;
+ import org.springframework.context.annotation.Bean;
+ import org.springframework.context.annotation.Configuration;
+ import org.springframework.context.annotation.Profile;
++import org.springframework.core.io.Resource;
++import org.springframework.http.client.JdkClientHttpRequestFactory;
+ import org.springframework.web.client.RestTemplate;
+ 
+ /**
+  * Provides a RestTemplate that can be injected into other components. The
+  * RestTemplate uses the configured API Key when making a request.
++ *
++ * The Customer Core serves its API over mutual TLS and rejects callers that do
++ * not present a certificate, so the RestTemplate is built from two stores: the
++ * key store holds this service's own certificate and private key, the trust
++ * store holds the CA that signed the Customer Core's certificate. Both are
++ * generated by ./generate-certificates.sh in the repository root.
+  */
+ @Configuration
+ @Profile("default")
+@@ -18,10 +34,58 @@ public class DefaultAuthenticatedRestTemplateClient {
+ 	@Autowired
+ 	private HeaderRequestInterceptor headerRequestInterceptor;
+ 
++	@Value("${customercore.tls.keyStore}")
++	private Resource keyStore;
++
++	@Value("${customercore.tls.keyStorePassword}")
++	private String keyStorePassword;
++
++	@Value("${customercore.tls.keyStoreType:PKCS12}")
++	private String keyStoreType;
++
++	@Value("${customercore.tls.trustStore}")
++	private Resource trustStore;
++
++	@Value("${customercore.tls.trustStorePassword}")
++	private String trustStorePassword;
++
++	@Value("${customercore.tls.trustStoreType:PKCS12}")
++	private String trustStoreType;
++
+ 	@Bean
+-	public RestTemplate restTemplate() {
+-		RestTemplate restTemplate = new RestTemplate();
++	public RestTemplate restTemplate() throws Exception {
++		/*
++		 * The JDK's HTTP client is used because it accepts an SSLContext and
++		 * verifies the server's hostname against its certificate by default.
++		 */
++		HttpClient httpClient = HttpClient.newBuilder()
++				.sslContext(mutualTlsContext())
++				.build();
++		RestTemplate restTemplate = new RestTemplate(new JdkClientHttpRequestFactory(httpClient));
+ 		restTemplate.setInterceptors(Arrays.asList(headerRequestInterceptor));
+ 		return restTemplate;
+ 	}
+-}
+\ No newline at end of file
++
++	private SSLContext mutualTlsContext() throws Exception {
++		KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(
++				KeyManagerFactory.getDefaultAlgorithm());
++		keyManagerFactory.init(load(keyStore, keyStoreType, keyStorePassword),
++				keyStorePassword.toCharArray());
++
++		TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(
++				TrustManagerFactory.getDefaultAlgorithm());
++		trustManagerFactory.init(load(trustStore, trustStoreType, trustStorePassword));
++
++		SSLContext sslContext = SSLContext.getInstance("TLS");
++		sslContext.init(keyManagerFactory.getKeyManagers(), trustManagerFactory.getTrustManagers(), null);
++		return sslContext;
++	}
++
++	private static KeyStore load(Resource resource, String type, String password) throws Exception {
++		KeyStore store = KeyStore.getInstance(type);
++		try (InputStream inputStream = resource.getInputStream()) {
++			store.load(inputStream, password.toCharArray());
++		}
++		return store;
++	}
++}
+diff --git a/policy-management-backend/src/main/resources/application.properties b/policy-management-backend/src/main/resources/application.properties
+index b6b52e4..7951c80 100644
+--- a/policy-management-backend/src/main/resources/application.properties
++++ b/policy-management-backend/src/main/resources/application.properties
+@@ -37,5 +37,19 @@ riskmanagement.queueName=newpolicies
+ spring.activemq.user=queueuser
+ spring.activemq.password=secret
+ 
+-customercore.baseURL=http://localhost:8110
++customercore.baseURL=https://localhost:8110
++
++# The Customer Core requires a client certificate, so the RestTemplate is built
++# from both stores: the key store to prove who we are, the trust store to
++# verify the Customer Core. See DefaultAuthenticatedRestTemplateClient.
++#
++# The stores are not in version control. Run ./generate-certificates.sh in the
++# repository root once before starting the service.
++customercore.tls.keyStore=file:./certs/policy-management-backend.p12
++customercore.tls.keyStorePassword=changeit
++customercore.tls.keyStoreType=PKCS12
++customercore.tls.trustStore=file:./certs/truststore.p12
++customercore.tls.trustStorePassword=changeit
++customercore.tls.trustStoreType=PKCS12
++
+ spring.boot.admin.client.url = http://localhost:9000
+\ No newline at end of file
+diff --git a/run_all_applications.sh b/run_all_applications.sh
+index 5f8aab8..f15c212 100755
+--- a/run_all_applications.sh
++++ b/run_all_applications.sh
+@@ -1,5 +1,10 @@
+ #/bin/sh
+ 
++# The Customer Core serves its API over mutual TLS, so the services need key
++# and trust stores. They are generated rather than committed; this is
++# idempotent, so an existing set is reused.
++bash ./generate-certificates.sh
++
+ npx recursive-install
+ 
+ npx concurrently \
+diff --git a/run_customer_management_applications.sh b/run_customer_management_applications.sh
+index 25a64be..26a2e6d 100755
+--- a/run_customer_management_applications.sh
++++ b/run_customer_management_applications.sh
+@@ -1,5 +1,10 @@
+ #/bin/sh
+ 
++# The Customer Core serves its API over mutual TLS, so the services need key
++# and trust stores. They are generated rather than committed; this is
++# idempotent, so an existing set is reused.
++bash ./generate-certificates.sh
++
+ npx recursive-install
+ 
+ npx concurrently \
