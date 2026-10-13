@@ -3,6 +3,7 @@
     "transport": null,
     "calls": [],
     "endpoints": [],
+    "channels": [],
     "server": [
       {
         "connector": "server",
@@ -80,6 +81,7 @@
         "verb": "GetMapping"
       }
     ],
+    "channels": [],
     "server": [
       {
         "connector": "server",
@@ -94,6 +96,7 @@
     "transport": null,
     "calls": [],
     "endpoints": [],
+    "channels": [],
     "server": [
       {
         "connector": "server",

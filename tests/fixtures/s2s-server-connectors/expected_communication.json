@@ -3,6 +3,7 @@
     "transport": null,
     "calls": [],
     "endpoints": [],
+    "channels": [],
     "server": [
       {
         "clientAuth": "need",

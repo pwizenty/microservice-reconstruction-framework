@@ -24,6 +24,7 @@ from mrf.plugins.service.communication.configuration import (
 )
 from mrf.plugins.service.communication.urls import is_schema_url
 from mrf.utilities.communication import (
+    MESSAGE_CHANNEL,
     SERVER_ENDPOINT,
     SERVICE_CALL,
     SERVICE_CALL_ENDPOINT,
@@ -74,6 +75,14 @@ def reconstruct_communication(fixture: pathlib.Path) -> dict:
                 dict(sorted(data.values.items()))
                 for data in microservice.data
                 if data.name == SERVICE_CALL_ENDPOINT
+            ],
+            # The asynchronous half of the interaction surface. Smell 3.7
+            # covers "each communication channel between any two
+            # microservices", and a queue is such a channel.
+            "channels": [
+                dict(sorted(data.values.items()))
+                for data in microservice.data
+                if data.name == MESSAGE_CHANNEL
             ],
             # What the service itself answers on, which is the other half of
             # the smell: a plaintext caller matters because the callee accepts

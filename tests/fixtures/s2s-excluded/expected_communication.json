@@ -16,6 +16,7 @@
       }
     ],
     "endpoints": [],
+    "channels": [],
     "server": [
       {
         "connector": "server",

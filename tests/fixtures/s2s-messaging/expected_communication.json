@@ -1,0 +1,94 @@
+{
+  "Publisher": {
+    "transport": null,
+    "calls": [],
+    "endpoints": [],
+    "channels": [
+      {
+        "broker": "activemq",
+        "brokerAddress": "tcp://broker:61616",
+        "file": "src/publisher/src/main/java/com/example/publisher/EventProducer.java",
+        "line": "19",
+        "property": "orders.queueName",
+        "queue": "orders-queue",
+        "role": "producer",
+        "scheme": "tcp",
+        "target": "Subscriber",
+        "technology": "JMS",
+        "transport": "plaintext"
+      },
+      {
+        "broker": "activemq",
+        "brokerAddress": "tcp://broker:61616",
+        "file": "src/publisher/src/main/java/com/example/publisher/EventProducer.java",
+        "line": "24",
+        "queue": "audit-queue",
+        "role": "producer",
+        "scheme": "tcp",
+        "technology": "JMS",
+        "transport": "plaintext"
+      },
+      {
+        "broker": "activemq",
+        "brokerAddress": "tcp://broker:61616",
+        "file": "src/publisher/src/main/java/com/example/publisher/EventProducer.java",
+        "line": "29",
+        "queue": "unresolved",
+        "role": "producer",
+        "scheme": "tcp",
+        "technology": "JMS",
+        "transport": "plaintext"
+      }
+    ],
+    "server": [
+      {
+        "connector": "server",
+        "port": "8080",
+        "protocol": "http",
+        "tlsEnabled": "false",
+        "valueSource": "src/publisher/src/main/resources/application.properties"
+      }
+    ]
+  },
+  "Subscriber": {
+    "transport": null,
+    "calls": [],
+    "endpoints": [],
+    "channels": [
+      {
+        "broker": "activemq",
+        "brokerAddress": "tcp://broker:61616",
+        "file": "src/subscriber/src/main/java/com/example/subscriber/OrderConsumer.java",
+        "line": "10",
+        "property": "orders.queueName",
+        "queue": "orders-queue",
+        "role": "consumer",
+        "scheme": "tcp",
+        "target": "Publisher",
+        "technology": "JMS",
+        "transport": "plaintext"
+      },
+      {
+        "broker": "activemq",
+        "brokerAddress": "tcp://broker:61616",
+        "file": "src/subscriber/src/main/java/com/example/subscriber/OrderConsumer.java",
+        "line": "15",
+        "property": "reports.queueName",
+        "queue": "reports-queue",
+        "role": "consumer",
+        "scheme": "tcp",
+        "technology": "JMS",
+        "transport": "plaintext"
+      }
+    ],
+    "server": [
+      {
+        "connector": "server",
+        "port": "8081",
+        "protocol": "http",
+        "tlsEnabled": "false",
+        "valueSource": "src/subscriber/src/main/resources/application.properties"
+      }
+    ]
+  }
+}
