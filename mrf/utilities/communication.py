@@ -69,6 +69,68 @@ it is still a TLS connector.
 DEFAULT_HTTP_PORT = "8080"
 """Port Spring listens on when nothing configures one."""
 
+MESSAGE_CHANNEL = "MessageChannel"
+"""Meta-data name of a queue a service produces to or consumes from.
+
+A fact of its own beside :data:`SERVICE_CALL`, because the evidence of a
+messaging channel is a queue and a broker rather than a verb and a path, and
+because the refactoring differs: mutual TLS secures a call, a broker's ``ssl://``
+secures a queue.
+"""
+
+ROLE = "role"
+QUEUE = "queue"
+BROKER = "broker"
+BROKER_ADDRESS = "brokerAddress"
+DEFAULTED = "defaulted"
+
+ROLE_PRODUCER = "producer"
+ROLE_CONSUMER = "consumer"
+
+JMS_TEMPLATE = "JmsTemplate"
+"""Type whose presence makes a class a producer."""
+
+JMS_SEND_METHODS = ["convertAndSend", "send"]
+"""Methods of a ``JmsTemplate`` whose first argument is the destination."""
+
+JMS_LISTENER = "JmsListener"
+JMS_LISTENER_DESTINATION = "destination"
+
+VALUE_ANNOTATION = "Value"
+"""Annotation whose single element holds the placeholder of a field."""
+
+ACTIVEMQ_BROKER_URL = "spring.activemq.broker-url"
+"""Property Spring reads a broker URL from."""
+
+BROKER_SERVICE = "BrokerService"
+ADD_CONNECTOR = "addConnector"
+"""An embedded broker and the method that gives it a connector.
+
+Lakeside Mutual configures no broker URL at all: policy-management-backend runs
+the broker itself and adds its connectors from properties, so a client's
+transport is only readable from the broker's own configuration.
+"""
+
+ACTIVEMQ = "activemq"
+DEFAULT_BROKER_URL = "tcp://localhost:61616"
+"""Broker URL ActiveMQ connects to when nothing configures one."""
+
+PLAINTEXT_BROKER_SCHEMES = ["tcp", "stomp", "amqp", "mqtt", "ws", "nio", "vm"]
+TLS_BROKER_SCHEMES = [
+    "ssl",
+    "stomp+ssl",
+    "amqps",
+    "mqtt+ssl",
+    "wss",
+    "nio+ssl",
+    "https",
+]
+"""Broker URL schemes, by whether they protect the channel.
+
+ActiveMQ names its TLS transports with an ``ssl`` suffix, so the scheme of a
+connector decides the transport of everything on it.
+"""
+
 
 # Keys of a ServiceCall entry
 TARGET = "target"

@@ -17,6 +17,7 @@ from pathlib import PurePath
 from mrf.modules.service import Microservice
 from mrf.plugins.common.common_plugin import Data, JavaClassArtifact
 from mrf.plugins.reconstruction_plugin import Plugin
+from mrf.plugins.service.communication.broker import Broker, broker_of
 from mrf.plugins.service.communication.configuration import (
     ServiceConfiguration,
     module_of,
@@ -24,25 +25,35 @@ from mrf.plugins.service.communication.configuration import (
 )
 from mrf.plugins.service.communication.detectors import (
     DETECTORS,
+    MESSAGING_DETECTORS,
     DetectionContext,
+    MessageChannel,
     ServiceCall,
 )
 from mrf.plugins.service.communication.server import ServerEndpoint, server_endpoints
 from mrf.utilities.command_line import SourceFile
 from mrf.utilities.communication import (
     ARTIFACT_TYPE,
+    BROKER,
+    BROKER_ADDRESS,
     CLIENT_AUTH,
     CONNECTOR,
+    DEFAULTED,
     FILE,
     LINE,
     LOCAL_HOSTS,
+    MESSAGE_CHANNEL,
     METHOD,
     PATH,
     PORT,
     PROFILE,
     PROPERTY,
     PROTOCOL,
+    QUEUE,
     RESOLVED_URL,
+    ROLE,
+    ROLE_CONSUMER,
+    ROLE_PRODUCER,
     SCHEME,
     SERVER_ENDPOINT,
     SERVICE_CALL,
@@ -64,6 +75,7 @@ from mrf.utilities.communication import (
     Transport,
 )
 from mrf.utilities.java_utils import get_class_from_tree, get_class_name, load_classes
+from mrf.utilities.node import MESSAGE_QUEUE
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +88,8 @@ class CommunicationPlugin(Plugin):
         self.configurations: dict[str, ServiceConfiguration] = {}
         # Calls that were found, by the module of the calling service.
         self.calls: dict[str, list[ServiceCall]] = {}
+        # Queues a service produces to or consumes from, by its module.
+        self.channels: dict[str, list[MessageChannel]] = {}
 
     def file_types(self) -> list[str]:
         """Return the file suffixes this plugin analyses.
@@ -123,6 +137,9 @@ class CommunicationPlugin(Plugin):
             for detector in DETECTORS:
                 for call in detector.detect(clazz, java_class.tree, context):
                     self.calls.setdefault(module, []).append(call)
+            for messaging in MESSAGING_DETECTORS:
+                for channel in messaging.detect(clazz, java_class.tree, context):
+                    self.channels.setdefault(module, []).append(channel)
 
         return self.calls
 
@@ -149,6 +166,7 @@ class CommunicationPlugin(Plugin):
             return microservices
 
         targets = self.__known_targets(microservices)
+        peers = self.__peers_by_queue(microservices)
         for microservice in microservices:
             module = module_of(microservice.origin_file)
             if module is None:
@@ -159,6 +177,9 @@ class CommunicationPlugin(Plugin):
             # TLS is the other half of the smell. CustomerCore of Lakeside
             # Mutual is exactly that service.
             microservice.data.extend(self.__to_server_data(module))
+            microservice.data.extend(
+                self.__to_channel_data(module, microservice, peers)
+            )
 
             calls = self.__deduplicate(self.calls.get(module, []))
             if not calls:
@@ -222,6 +243,131 @@ class CommunicationPlugin(Plugin):
             values[VALUE_SOURCE] = endpoint.value_source
         data.values = values
         return data
+
+    def __to_channel_data(
+        self,
+        module: str,
+        microservice: Microservice,
+        peers: dict[str, dict[str, list[Microservice]]],
+    ) -> list[Data]:
+        """The queues a service uses, as one meta-data entry each.
+
+        A producer is paired with every service that consumes the same queue.
+        An unpaired channel keeps its queue and loses only its target: a queue
+        nothing of this system publishes to, or consumes from, is a fact about
+        the system rather than nothing - the message may come from outside it,
+        or the other end may be unimplemented.
+
+        Args:
+            module (str): Module directory of the service
+            microservice (Microservice): The service itself
+            peers (dict[str, dict[str, [Microservice]]]): Services by the queue
+                they use and the role they use it in
+
+        Returns:
+            [Data]: One entry per channel, one per peer where several
+        """
+        channels = self.channels.get(module, [])
+        if not channels:
+            return []
+
+        broker = broker_of(self.configurations.get(module), self.configurations)
+        entries: list[Data] = []
+        for channel in self.__deduplicate_channels(channels):
+            # The peer of a producer is whoever consumes the queue, and the
+            # peer of a consumer is whoever produces to it. Resolving only one
+            # direction reported the same channel as paired from one end and
+            # unpaired from the other.
+            opposite = ROLE_CONSUMER if channel.role == ROLE_PRODUCER else ROLE_PRODUCER
+            targets = [
+                peer
+                for peer in peers.get(channel.queue, {}).get(opposite, [])
+                if peer is not microservice
+            ]
+            if targets:
+                entries.extend(
+                    self.__from_channel(channel, broker, peer.name) for peer in targets
+                )
+            else:
+                entries.append(self.__from_channel(channel, broker, None))
+        return entries
+
+    def __from_channel(
+        self, channel: MessageChannel, broker: Broker, target: str | None
+    ) -> Data:
+        """One channel as meta-data."""
+        data = Data(MESSAGE_CHANNEL)
+        values = {
+            ROLE: channel.role,
+            QUEUE: channel.queue,
+            BROKER: broker.name,
+            SCHEME: broker.scheme,
+            TRANSPORT: broker.transport.value,
+            BROKER_ADDRESS: broker.url,
+            TECHNOLOGY: channel.technology,
+            FILE: channel.evidence.file,
+            LINE: str(channel.evidence.line),
+        }
+        if target is not None:
+            values[TARGET] = target
+        if broker.defaulted:
+            values[DEFAULTED] = "true"
+        if channel.property_name is not None:
+            values[PROPERTY] = channel.property_name
+        data.values = values
+        return data
+
+    def __peers_by_queue(
+        self, microservices: list[Microservice]
+    ) -> dict[str, dict[str, list[Microservice]]]:
+        """Which services use which queue, and in which role.
+
+        Read from the channels this plugin found and from the queues another
+        plugin already reported: the Node plugin attaches a ``MessageQueue`` to
+        the service it analysed, and the handler runs its ``assign_to`` before
+        this one's - which is what lets a Java producer pair with a consumer
+        written in another language.
+        """
+        peers: dict[str, dict[str, list[Microservice]]] = {}
+
+        def record(queue: str, role: str, microservice: Microservice) -> None:
+            roles = peers.setdefault(queue, {})
+            roles.setdefault(role, []).append(microservice)
+
+        for microservice in microservices:
+            module = module_of(microservice.origin_file)
+            if module is not None:
+                for channel in self.channels.get(module, []):
+                    if channel.resolved:
+                        record(channel.queue, channel.role, microservice)
+            for data in microservice.data:
+                if data.name != MESSAGE_QUEUE:
+                    continue
+                queue = data.values.get(QUEUE)
+                if queue:
+                    # A MessageQueue states a queue the service uses without
+                    # saying in which role, and every one seen so far is a
+                    # consumer. Recorded as one rather than as both, so a
+                    # producer does not pair with itself.
+                    record(queue, ROLE_CONSUMER, microservice)
+        return peers
+
+    def __deduplicate_channels(
+        self, channels: list[MessageChannel]
+    ) -> list[MessageChannel]:
+        """One channel per role and queue, keeping the first evidence.
+
+        A service may send to the same queue from several methods; that is one
+        channel, reported once.
+        """
+        seen: set[tuple[str, str]] = set()
+        unique: list[MessageChannel] = []
+        for channel in channels:
+            key = (channel.role, channel.queue)
+            if key not in seen:
+                seen.add(key)
+                unique.append(channel)
+        return unique
 
     def __known_targets(
         self, microservices: list[Microservice]

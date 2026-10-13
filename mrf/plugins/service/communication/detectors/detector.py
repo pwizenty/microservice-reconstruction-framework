@@ -86,6 +86,36 @@ class ServiceCall:
 
 
 @dataclass
+class MessageChannel:
+    """A queue a service produces to or consumes from, as the sources state it.
+
+    A fact of its own beside :class:`ServiceCall`: the evidence is a queue and
+    a broker rather than a verb and a path, and the refactoring differs too -
+    mutual TLS secures a call, a broker's ``ssl://`` secures a queue.
+
+    The peer at the other end is not decided here. A detector reports which
+    queue this service produces to or consumes from; pairing a producer with a
+    consumer needs every service's facts and is the plugin's business.
+
+    Attributes:
+        role: ``producer`` or ``consumer``
+        queue: Name of the queue, resolved against the service's configuration
+        technology: Client technology the channel was found in
+        evidence: Where it was read
+        property_name: Property the queue name came from, for a placeholder
+        resolved: Whether the queue name is known rather than a placeholder
+            nothing resolves
+    """
+
+    role: str
+    queue: str
+    technology: str
+    evidence: Evidence
+    property_name: str | None = None
+    resolved: bool = True
+
+
+@dataclass
 class DetectionContext:
     """What a detector needs beside the parsed class.
 
@@ -99,6 +129,35 @@ class DetectionContext:
     path: str
     lines: list[str] = field(default_factory=list)
     configuration: ServiceConfiguration | None = None
+
+
+class MessagingDetector(Protocol):
+    """Detector for the queues one messaging technology uses.
+
+    Separate from :class:`ClientDetector` because it reports a different fact.
+    A technology is added as a module plus an entry in
+    :data:`mrf.plugins.service.communication.detectors.MESSAGING_DETECTORS`.
+    """
+
+    technology: str
+
+    def detect(
+        self,
+        clazz: TypeDeclaration,
+        unit: CompilationUnit,
+        context: DetectionContext,
+    ) -> list[MessageChannel]:
+        """Reconstruct the queues a class produces to or consumes from.
+
+        Args:
+            clazz: Parsed declaration of the class
+            unit: Unit the class is declared in
+            context: Path, lines and configuration of the analysed file
+
+        Returns:
+            The channels that were found, empty when the class uses none
+        """
+        ...
 
 
 class ClientDetector(Protocol):

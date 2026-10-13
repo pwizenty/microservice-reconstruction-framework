@@ -24,9 +24,11 @@ Before claiming a task is done: ruff, mypy and pytest must pass. Show the output
 - `mrf/plugins/` – technology plugins implementing `Plugin` ABC (`reconstruction_plugin.py`)
   - `data/java/` – domain data from JPA entities; `service/spring/` – services/REST interfaces
   - `operation/docker/` – operation nodes from Compose/Dockerfiles (ADR-0008); needs the system root as `-t`
-  - `service/communication/` – outgoing calls of a service and the transport they use,
-    and the ports the service itself answers on, as meta-data on the microservice
-    (ADR-0009); one detector per client technology, `server.py` for the ports
+  - `service/communication/` – the interaction surface of a service as meta-data on
+    the microservice (ADR-0009): outgoing calls and their transport, the queues it
+    produces to or consumes from, and the ports it answers on. One detector per
+    technology in `detectors/` (two registries: calls and messaging),
+    `server.py` for the ports, `broker.py` for the message broker
   - `data/protobuf/`, `service/protobuf/` – a gRPC contract: messages into the domain
     phase, service and rpcs into the service phase; one selection (`Protobuf`) feeds both
   - `service/node/` – what a Node service serves, from `package.json` and its own

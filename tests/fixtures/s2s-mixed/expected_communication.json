@@ -3,6 +3,7 @@
     "transport": null,
     "calls": [],
     "endpoints": [],
+    "channels": [],
     "server": [
       {
         "connector": "server",
@@ -17,6 +18,7 @@
     "transport": null,
     "calls": [],
     "endpoints": [],
+    "channels": [],
     "server": [
       {
         "connector": "server",
@@ -58,6 +60,7 @@
       }
     ],
     "endpoints": [],
+    "channels": [],
     "server": [
       {
         "connector": "server",
