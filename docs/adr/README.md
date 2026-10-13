@@ -14,3 +14,4 @@ New ADRs start as *Proposed*; only the maintainer sets *Accepted*.
 | [0007](0007-no-generated-api-documentation.md) | Keep hand-written records instead of generated API documentation | Proposed |
 | [0008](0008-operation-phase-reconstructs-deployment.md) | Reconstruct deployment into operation nodes, in a third collection | Accepted |
 | [0009](0009-security-plugin-reconstructs-communication-facts.md) | Reconstruct communication security as meta-data, in a plugin of its own | Accepted |
+| [0010](0010-resolve-smells-with-an-ai-authored-patch.md) | Resolve security smells with an AI-authored patch, outside the reproducible path | Accepted |
