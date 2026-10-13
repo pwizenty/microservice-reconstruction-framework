@@ -1,6 +1,6 @@
 # ADR-0007: Keep hand-written records instead of generated API documentation
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-29
 - Deciders: Philip Wizenty
 - Supersedes: – (narrows the documentation part of ADR-0005)

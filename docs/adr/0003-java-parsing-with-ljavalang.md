@@ -1,6 +1,6 @@
 # ADR-0003: Parse Java sources with ljavalang
 
-- Status: Proposed (documents the current state)
+- Status: Accepted (documents the current state)
 - Date: 2026-09-24
 - Updated: 2026-09-28 (class-annotation defect in ljavalang 2.1.0)
 - Deciders: Philip Wizenty

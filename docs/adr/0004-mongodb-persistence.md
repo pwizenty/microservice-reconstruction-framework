@@ -1,6 +1,6 @@
 # ADR-0004: Persist reconstruction results in MongoDB
 
-- Status: Proposed (documents the current state, with open questions)
+- Status: Accepted (documents the current state, with open questions)
 - Amended: 2026-09-29, upserts implemented (see *Amendments*)
 - Date: 2026-09-24
 - Deciders: Philip Wizenty

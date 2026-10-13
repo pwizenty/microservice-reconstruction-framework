@@ -111,7 +111,7 @@ Noticed while building the two diagram bundles; none of them is a defect.
 | # | Item | Note |
 |---|---|---|
 | E1 | MRF known issues | already listed in `CLAUDE.md` under *Known issues*, to be fixed when the area is touched rather than as a campaign. The `sping.py` → `spring.py` rename wants a dedicated commit |
-| E2 | Seven ADRs are still *Proposed* | only the maintainer sets *Accepted*. ADR-0002 staying Proposed is why plugin registration is hand-wired in three places |
+| E2 | Plugin registration still hand-wired, against **Accepted** ADR-0002 | all ten ADRs are now Accepted (2026-10-13), so the three-place wiring - `PluginType`, the CLI `choices`, the handler's phase branch - is a deviation rather than a pending question. Migrating to entry points in `pyproject.toml` removes it |
 | E3 | `../lemma/de.fhdo.lemma.servicedsl.extractor` build config contradicts itself | `build.properties` says `output.. = bin/`, the committed `.classpath` says `target/classes`. The local working copy fixes it but also carries m2e entries, which is why it has been kept out of commits. Wants the output-folder change alone, in its own commit |
 | E4 | `temp.txt` in the LEMMA working copy | pre-existing, untracked |
 
