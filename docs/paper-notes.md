@@ -250,7 +250,39 @@ contains no mesh, no TLS and no ingress.
 | gate `starts` | SKIP (see below) | not run |
 | Verdict | **PARTIAL** | **NOT VERIFIED** |
 
-**The 9 → 6 reduction is the central result.** It is the predicted number, not
+A third proposal, `rc2-on-rc1`, was then produced against a tree where `rc1`
+was already applied, which is the fix for the composition problem in §7:
+
+| | rc2-on-rc1 |
+|---|---|
+| Turns / duration / cost | 135 + 28 / 23 min / $11.89 + $17.15 |
+| Patch | 15 files on top of rc1, 25 files against the original |
+| gate `clean` / `inplace` | **PASS** / PASS |
+| gate `smell` | **PASS — 9 → 0** |
+| gate `starts` | SKIP |
+| Verdict | **PARTIAL** |
+
+**The smell is resolved for the whole system: 9 findings to 0.** Told what the
+first proposal had established, the second extended its certificate
+infrastructure instead of inventing a second CA, and the two compose as
+sequential commits.
+
+It also passes the clean-checkout gate that `rc2` standalone failed, by giving
+the test broker ActiveMQ's in-VM transport rather than a certificate-reading
+connector. **That is a trade-off, not a free win:** `rc2` standalone's test
+exercised a real mutual-TLS handshake and this one does not, so the
+clean-checkout criterion bought build ergonomics at the cost of transport
+coverage in that one test.
+
+Two caveats belong with this number. The proposal was produced **without the
+skill** — the plugin path existed only on another branch of the LEMMA working
+copy, so it ran on the request and constraints alone and is therefore not
+evidence about the skill. And it took **two sessions**: the first was cut off
+by an account usage limit after substantial edits but before it built anything,
+and was resumed rather than discarded. A proposal is not an atomic operation,
+and `ClaudeCliProposer` has no notion of resuming one.
+
+**The 9 → 6 reduction of rc1 alone is the cleanest single-cause result.** It is the predicted number, not
 merely movement: rc1 resolves the three synchronous findings and leaves the six
 asynchronous ones, which are rc2's cause. The chain closes — patch,
 re-reconstruct, re-detect, measured reduction.
@@ -317,12 +349,19 @@ Lakeside Mutual's Dockerfiles leave the withdrawn base image, so no refactoring
 in this work has been shown to leave a *running* system. The strongest claim
 available is rc1's `PARTIAL`.
 
-**One patch at a time.** The verify loop has only ever seen a single proposal.
-rc1 and rc2 were produced independently against the same commit and **do not
-compose**: they overlap in five files and each invents its own CA and
-certificate script. Proposals for a second cause must be generated against a
-tree where the first is already applied. (A run doing exactly that is in
-progress at the time of writing; its result is not in these notes.)
+**Proposals compose only if told to.** rc1 and rc2 were produced independently
+against the same commit and **do not compose**: they overlap in five files and
+each invents its own CA and certificate script. Generating the second against a
+tree where the first is applied fixes it, and that is now how it is done - but
+it means the order is part of the method, and a system with many causes needs
+them resolved in sequence rather than in parallel.
+
+**An automated checker that reads text cannot tell code from a description of
+code.** `PatchGuard` rejected a correct patch because the proposal's own notes
+recorded the constraints it had honoured, naming `NoopHostnameVerifier` and
+`rejectUnauthorized: false` in prose. Prose files are now excluded. Together
+with the start gate's false attribution in §6, this is two instances of the
+same hazard in one piece of work.
 
 **The quickfix is unexercised.** It compiles against the real Xtext and Eclipse
 APIs, but has never run in a live Eclipse: that the entry appears under
