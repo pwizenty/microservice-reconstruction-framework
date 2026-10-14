@@ -259,8 +259,8 @@ was already applied, which is the fix for the composition problem in §7:
 | Patch | 15 files on top of rc1, 25 files against the original |
 | gate `clean` / `inplace` | **PASS** / PASS |
 | gate `smell` | **PASS — 9 → 0** |
-| gate `starts` | SKIP |
-| Verdict | **PARTIAL** |
+| gate `starts` | **PASS**, once the sample was buildable |
+| Verdict | **VERIFIED** |
 
 **The smell is resolved for the whole system: 9 findings to 0.** Told what the
 first proposal had established, the second extended its certificate
@@ -281,6 +281,14 @@ evidence about the skill. And it took **two sessions**: the first was cut off
 by an account usage limit after substantial edits but before it built anything,
 and was resumed rather than discarded. A proposal is not an atomic operation,
 and `ClaudeCliProposer` has no notion of resuming one.
+
+Checked directly rather than taken from the gate, because `compose up --wait`
+proves health checks passed and not that the TLS path is exercised: plaintext
+on 8110 gets Tomcat's 400, `https` with a client certificate completes the
+handshake, **`https` without one is refused** - which is what distinguishes
+mutual TLS from TLS - and two of the three callers return real data through the
+channel. The broker logs `ssl://` and `stomp+ssl://` connectors with
+`needClientAuth=true` and no plaintext connector.
 
 **The 9 → 6 reduction of rc1 alone is the cleanest single-cause result.** It is the predicted number, not
 merely movement: rc1 resolves the three synchronous findings and leaves the six
@@ -344,10 +352,18 @@ every TLS-positive and mutual-TLS path is exercised only by a fixture
 (`secured.services`), which exists precisely because "the detector found
 nothing" and "the detector is broken" would otherwise be indistinguishable.
 
-**No full `VERIFIED` verdict exists.** The `starts` gate can only skip until
-Lakeside Mutual's Dockerfiles leave the withdrawn base image, so no refactoring
-in this work has been shown to leave a *running* system. The strongest claim
-available is rc1's `PARTIAL`.
+**A full `VERIFIED` verdict was reached, after fixing the sample.** Lakeside
+Mutual's Dockerfiles named `openjdk:21-slim-buster`, withdrawn from Docker Hub,
+so the system could not be built at all and the `starts` gate could only skip.
+Moving the five Java services to `eclipse-temurin` made it buildable; the two
+refactoring commits were rebased onto that fix and the combined patch verifies
+on all four gates - **9 findings to 0, and the system still runs**.
+
+Worth stating as a methodological point rather than hiding in a footnote: the
+strongest claim this method can make depended on repairing the *subject
+system's* build, which is not part of the contribution. A sample whose
+containers no longer build caps the method at `PARTIAL` no matter how good the
+refactoring is.
 
 **Proposals compose only if told to.** rc1 and rc2 were produced independently
 against the same commit and **do not compose**: they overlap in five files and
@@ -362,6 +378,14 @@ recorded the constraints it had honoured, naming `NoopHostnameVerifier` and
 `rejectUnauthorized: false` in prose. Prose files are now excluded. Together
 with the start gate's false attribution in §6, this is two instances of the
 same hazard in one piece of work.
+
+**The validation gate is generic in structure and was Lakeside-Mutual-specific
+in configuration.** The MRF plugin selection and the build command are now
+options (`--plugins`, `--build-command`), and a system with nothing
+recognisable to build skips the build gates rather than passing them - it used
+to pass, which is a false green. What remains specific: the default Maven walk,
+`docker-compose.yml` at the tree root, and the certificate script's name
+pattern. All degrade to a stated skip.
 
 **The quickfix is unexercised.** It compiles against the real Xtext and Eclipse
 APIs, but has never run in a live Eclipse: that the entry appears under

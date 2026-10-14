@@ -114,7 +114,7 @@ Noticed while building the two diagram bundles; none of them is a defect.
 | E2 | Seven ADRs are still *Proposed* | only the maintainer sets *Accepted*. ADR-0002 staying Proposed is why plugin registration is hand-wired in three places |
 | E3 | `../lemma/de.fhdo.lemma.servicedsl.extractor` build config contradicts itself | `build.properties` says `output.. = bin/`, the committed `.classpath` says `target/classes`. The local working copy fixes it but also carries m2e entries, which is why it has been kept out of commits. Wants the output-folder change alone, in its own commit |
 | E4 | `temp.txt` in the LEMMA working copy | pre-existing, untracked |
-| E5 | **Lakeside Mutual cannot be built as a container system** | its Dockerfiles name `openjdk:21-slim-buster`, withdrawn from Docker Hub: `failed to solve: openjdk:21-slim-buster: not found`, patched or unpatched. Verified 2026-10-14 against a clean worktree at HEAD. Nothing in the reconstruction depends on it, but the *system starts* gate of `verify-refactoring.sh` can only ever skip until the base image is current, so no refactoring can reach a full **VERIFIED** verdict |
+| ~~E5~~ | ~~**Lakeside Mutual cannot be built as a container system**~~ | **done, 2026-10-14.** Its Dockerfiles named `openjdk:21-slim-buster`, withdrawn from Docker Hub, so the system could not be built patched or unpatched. Fixed in the sample's own repository on `fix/container-base-images`: the five Java services build on `eclipse-temurin:21-jdk` and run on `:21-jre`, neither of which sets a `WORKDIR`, so the `file:./certs/...` paths of the mutual-TLS work still resolve. The *system starts* gate now runs, and a refactoring reached **VERIFIED** |
 
 ## What this list does not contain
 
