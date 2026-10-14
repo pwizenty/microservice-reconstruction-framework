@@ -52,3 +52,22 @@ The patch changed `CUSTOMERCORE_BASEURL` in `docker-compose.yml`, which reaches
 `customercore.baseURL` through Spring's relaxed binding. MRF does not resolve
 relaxed binding yet (backlog **A3**), so this part of the patch is more complete
 than the toolchain can currently verify.
+
+---
+
+Below is appended by `tools/verify-refactoring.sh`, not written by hand.
+Gates 3 and 4 were skipped in this run: they need Docker, MongoDB and a full
+MRF reconstruction, so the build gates were isolated first.
+
+## Verification, 2026-10-14T07:50:19Z
+
+**PARTIAL** — 2 passed, 0 failed, 2 skipped.
+
+- PASS clean: the patch applies to a clean checkout and the build is green
+- PASS inplace: the build is green once key material exists
+- SKIP smell: not measured
+- SKIP starts: asked to skip
+
+A skipped gate is not a passed one: PARTIAL means the refactoring has
+not been shown to resolve the smell, only that nothing checked
+contradicts it.

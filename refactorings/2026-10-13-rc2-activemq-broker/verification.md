@@ -71,3 +71,22 @@ the broker, and a Node client consuming over `stomp+ssl`. See `notes.md`.
   rather than observed.
 - **The Kubernetes manifests** were left untouched, as in `rc1`, so they now
   disagree with the application about the broker transport too.
+
+---
+
+Below is appended by `tools/verify-refactoring.sh`, not written by hand.
+Gates 3 and 4 were skipped in this run: they need Docker, MongoDB and a full
+MRF reconstruction, so the build gates were isolated first.
+
+## Verification, 2026-10-14T07:51:17Z
+
+**NOT VERIFIED** — 1 passed, 1 failed, 2 skipped.
+
+- PASS inplace: the build is green once key material exists
+- FAIL clean: the build fails on a clean checkout with no generated key material: FAILED: policy-management-backend see /var/folders/5q/g6s6_hd16xd2v6nr_5x4d3qc0000gn/T/lemma-clean-build.NftA3q552v
+- SKIP smell: not measured
+- SKIP starts: asked to skip
+
+A skipped gate is not a passed one: PARTIAL means the refactoring has
+not been shown to resolve the smell, only that nothing checked
+contradicts it.
