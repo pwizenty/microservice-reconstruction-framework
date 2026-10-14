@@ -1,6 +1,6 @@
 # ADR-0002: Discover plugins via entry points
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-24
 - Deciders: Philip Wizenty
 
@@ -24,7 +24,7 @@ third parties cannot add plugins without forking.
 3. Keep status quo (enum + explicit wiring)
 
 ## Decision
-Proposed: option 1. The `Plugin` ABC gains `name` and `phase` attributes; the
+Chosen option: option 1. The `Plugin` ABC gains `name` and `phase` attributes; the
 handler loads all entry points in group `mrf.plugins`, filters by the names
 chosen on the CLI and runs them grouped by phase. CLI choices are derived from
 the discovered plugins.

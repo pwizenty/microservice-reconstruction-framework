@@ -1,6 +1,6 @@
 # ADR-0006: Consume ljavalang from the pwizenty fork, pinned by commit
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-28
 - Deciders: Philip Wizenty
 - Supersedes: –

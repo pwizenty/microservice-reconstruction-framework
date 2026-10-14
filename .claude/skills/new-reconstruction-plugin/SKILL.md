@@ -27,8 +27,8 @@ golden-fixture test.
    (`plugins/service/spring/spring_plugin.py` for services,
    `plugins/data/java/java_plugin.py` for data).
 2. Scaffold from `templates/plugin.py`.
-3. Register the plugin: follow `references/checklist.md` – registration
-   differs depending on whether ADR-0002 (entry points) is accepted.
+3. Register the plugin: follow `references/checklist.md` – entry-point
+   discovery is decided (ADR-0002) but not yet implemented, so wire it by hand.
 4. Create a minimal sample system under `tests/fixtures/<technology>-minimal/`
    and a golden test (skill `add-golden-fixture`). Write the expected output
    by hand from the sample – do not generate it from the new plugin.
