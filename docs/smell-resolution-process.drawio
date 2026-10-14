@@ -1,5 +1,131 @@
 <mxfile host="app.diagrams.net" agent="Claude Code" version="24.0.0">
-  <diagram id="smell-resolution-process" name="Smell detection and resolution">
+  <diagram id="process-overview" name="Process">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1240" pageHeight="720" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="t" value="Detecting and resolving security smell §3.7 — Non-Secured Service-to-Service Communications" style="text;html=1;fontSize=15;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="40" y="24" width="1160" height="26" as="geometry"/>
+        </mxCell>
+        <mxCell id="st" value="Ponce et al. (2022).  Measured on Lakeside Mutual: 9 findings → 0." style="text;html=1;fontSize=11;align=center;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="40" y="52" width="1160" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1" value="1 · RECONSTRUCTION" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#9e9e9e;dashed=1;verticalAlign=top;align=center;spacingTop=10;fontSize=15;fontStyle=1;fontColor=#555555;" vertex="1" parent="1">
+          <mxGeometry x="40" y="100" width="340" height="450" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2" value="2 · REFACTORING" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#9e9e9e;dashed=1;verticalAlign=top;align=center;spacingTop=10;fontSize=15;fontStyle=1;fontColor=#555555;" vertex="1" parent="1">
+          <mxGeometry x="450" y="100" width="340" height="450" as="geometry"/>
+        </mxCell>
+        <mxCell id="p3" value="3 · VERIFICATION" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#9e9e9e;dashed=1;verticalAlign=top;align=center;spacingTop=10;fontSize=15;fontStyle=1;fontColor=#555555;" vertex="1" parent="1">
+          <mxGeometry x="860" y="100" width="340" height="450" as="geometry"/>
+        </mxCell>
+        <mxCell id="r1" value="Source system" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="80" y="150" width="260" height="46" as="geometry"/>
+        </mxCell>
+        <mxCell id="r2" value="MRF
+reconstructs FACTS, not verdicts" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="80" y="226" width="260" height="56" as="geometry"/>
+        </mxCell>
+        <mxCell id="r3" value="MongoDB" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="80" y="312" width="260" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="r4" value="LEMMA models
+*.services · *.data · *.operation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="80" y="392" width="260" height="56" as="geometry"/>
+        </mxCell>
+        <mxCell id="r5" value="deterministic · reproducible" style="text;html=1;fontSize=10;align=center;fontColor=#6c8ebf;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="80" y="474" width="260" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="f1" value="Smell detected
+9 findings, from 2 root causes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="490" y="150" width="260" height="56" as="geometry"/>
+        </mxCell>
+        <mxCell id="f2" value="Skill + constraints
+the refactoring the paper prescribes:
+Use Mutual TLS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="490" y="232" width="260" height="66" as="geometry"/>
+        </mxCell>
+        <mxCell id="f3" value="AI proposes a patch
+in a throwaway git worktree" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="490" y="324" width="260" height="56" as="geometry"/>
+        </mxCell>
+        <mxCell id="f4" value="patch.diff
+APPLIED NOWHERE" style="shape=note;whiteSpace=wrap;html=1;size=14;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="490" y="406" width="260" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="f5" value="an LLM · NOT reproducible" style="text;html=1;fontSize=10;align=center;fontColor=#d79b00;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="490" y="474" width="260" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="v1" value="Apply to a throwaway copy" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="900" y="150" width="260" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="v2" value="① builds from a clean checkout
+② builds with key material
+③ the finding count FELL
+④ the system still runs" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="900" y="206" width="260" height="86" as="geometry"/>
+        </mxCell>
+        <mxCell id="v3" value="Verdict
+VERIFIED · PARTIAL · NOT VERIFIED" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="900" y="310" width="260" height="56" as="geometry"/>
+        </mxCell>
+        <mxCell id="v4" value="9 → 0 findings
+VERIFIED" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="900" y="392" width="260" height="56" as="geometry"/>
+        </mxCell>
+        <mxCell id="v5" value="deterministic · this is what makes
+a proposal admissible" style="text;html=1;fontSize=10;align=center;fontColor=#6c8ebf;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="900" y="468" width="260" height="32" as="geometry"/>
+        </mxCell>
+        <mxCell id="e1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=blockThin;endFill=1;strokeWidth=2;fontSize=11;" edge="1" parent="1" source="r1" target="r2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=blockThin;endFill=1;strokeWidth=2;fontSize=11;" edge="1" parent="1" source="r2" target="r3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=blockThin;endFill=1;strokeWidth=2;fontSize=11;" edge="1" parent="1" source="r3" target="r4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=blockThin;endFill=1;strokeWidth=2;fontSize=11;exitX=1;exitY=0.25;entryX=0;entryY=0.5;" edge="1" parent="1" source="r4" target="f1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=blockThin;endFill=1;strokeWidth=2;fontSize=11;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="f1" target="f3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=blockThin;endFill=1;strokeWidth=2;fontSize=11;exitX=0.5;exitY=1;entryX=0;entryY=0.5;dashed=1;" edge="1" parent="1" source="f2" target="f3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=blockThin;endFill=1;strokeWidth=2;fontSize=11;" edge="1" parent="1" source="f3" target="f4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=blockThin;endFill=1;strokeWidth=2;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="f4" target="v1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e9" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=blockThin;endFill=1;strokeWidth=2;fontSize=11;" edge="1" parent="1" source="v1" target="v2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e10" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=blockThin;endFill=1;strokeWidth=2;fontSize=11;" edge="1" parent="1" source="v2" target="v3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e11" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=blockThin;endFill=1;strokeWidth=2;fontSize=11;" edge="1" parent="1" source="v3" target="v4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e12" value="③ re-runs the WHOLE reconstruction
+over the patched sources" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=blockThin;endFill=1;strokeWidth=2;fontSize=11;exitX=0;exitY=0.5;entryX=0.5;entryY=0;strokeColor=#82b366;dashed=1;verticalAlign=bottom;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="v2" target="r2">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="830" y="249"/><mxPoint x="830" y="90"/><mxPoint x="210" y="90"/></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="k" value="Why the loop matters: the third gate does not inspect the patch. It re-reconstructs the patched system and re-detects, so “9 → 0” is a measurement rather than a claim — and the LLM sits between two deterministic halves, with nothing it writes applied until a human has read it." style="text;html=1;fontSize=11;align=left;fontColor=#444444;spacingLeft=4;" vertex="1" parent="1">
+          <mxGeometry x="40" y="570" width="1160" height="56" as="geometry"/>
+        </mxCell>
+        <mxCell id="k2" value="Prerequisite, not part of the refactoring: the sample’s container images had to be repaired (a withdrawn base image) before gate ④ could run at all." style="text;html=1;fontSize=10;align=left;fontColor=#8a6d3b;spacingLeft=4;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="40" y="634" width="1160" height="20" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="smell-resolution-process" name="Detail (full pipeline)">
     <mxGraphModel dx="1600" dy="1100" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1100" math="0" shadow="0">
       <root>
         <mxCell id="0"/>
