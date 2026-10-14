@@ -71,3 +71,42 @@ MRF reconstruction, so the build gates were isolated first.
 A skipped gate is not a passed one: PARTIAL means the refactoring has
 not been shown to resolve the smell, only that nothing checked
 contradicts it.
+
+---
+
+The run below is the authoritative one: all four gates, with the start gate's
+baseline control in place. An earlier run of the same patch reported the start
+gate as FAIL and the verdict as NOT VERIFIED; that attribution was wrong. The
+sample system's Dockerfiles name `openjdk:21-slim-buster`, which has been
+withdrawn from Docker Hub, so a control worktree at HEAD with no patch applied
+fails to build identically. The gate was measuring the registry.
+
+**The reduction from 9 findings to 6 is the result this work exists to
+produce**, and it is what was predicted: rc1 resolves the three synchronous
+findings and leaves the six asynchronous ones, which are rc2's root cause.
+
+## Verification, 2026-10-14T07:50:19Z
+
+**PARTIAL** — 2 passed, 0 failed, 2 skipped.
+
+- PASS clean: the patch applies to a clean checkout and the build is green
+- PASS inplace: the build is green once key material exists
+- SKIP smell: not measured
+- SKIP starts: asked to skip
+
+A skipped gate is not a passed one: PARTIAL means the refactoring has
+not been shown to resolve the smell, only that nothing checked
+contradicts it.
+
+## Verification, 2026-10-14T08:00:59Z
+
+**PARTIAL** — 3 passed, 0 failed, 1 skipped.
+
+- PASS clean: the patch applies to a clean checkout and the build is green
+- PASS inplace: the build is green once key material exists
+- PASS smell: findings fell from 9 to 6
+- SKIP starts: the system does not come up unpatched either (docker.io/library/openjdk:21-slim-buster: not found), so this gate cannot attribute anything to the patch; see /var/folders/5q/g6s6_hd16xd2v6nr_5x4d3qc0000gn/T/lemma-control.TPJ54OgSP8
+
+A skipped gate is not a passed one: PARTIAL means the refactoring has
+not been shown to resolve the smell, only that nothing checked
+contradicts it.
