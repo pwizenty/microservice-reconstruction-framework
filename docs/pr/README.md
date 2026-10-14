@@ -27,6 +27,7 @@ their own diffs stay free of files describing themselves.
 | `docs-refactoring-proposals.md` | `docs/refactoring-proposals` | `dev` |
 | `docs-process-diagram.md` | `docs/process-diagram` | `dev` |
 | `fix-ci-runs-the-checks.md` | `fix/ci-runs-the-checks` | `dev` |
+| `fix-runtime-operation-environment.md` | `fix/runtime-operation-environment` | `dev` |
 
 Merge order matters for `docs/plans-and-adr`: it contains the commits of
 `feat/rest-technology-information`, so that branch goes first. The rest are
