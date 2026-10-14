@@ -6,6 +6,7 @@ persists the result in MongoDB. Research software (FH Dortmund) – results must
 be reproducible.
 
 ## Commands
+- Everything CI runs: `make check` (lint, format, types, tests)
 - Setup:        `uv sync --all-groups`
 - Run:          `uv run mrf -p Java Spring -t <path-to-system>` (needs MongoDB, see `mrf/config.yaml`)
 - Unit tests:   `uv run pytest -q`
