@@ -1,0 +1,13 @@
+version: "3"
+services:
+  customer-core:
+    build: customer-core
+    image: example/customer-core
+    ports:
+      - "8110:8110"
+
+  report-service:
+    build: report-service
+    image: example/report-service
+    ports:
+      - "8120:8120"

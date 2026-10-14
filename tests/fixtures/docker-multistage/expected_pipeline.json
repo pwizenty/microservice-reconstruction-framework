@@ -1,0 +1,116 @@
+{
+  "contexts": [
+    {
+      "collections": [],
+      "data": [],
+      "data_structures": [],
+      "enums": [],
+      "name": "CustomerCore",
+      "origin_file": "src/customer-core/src/com/example/customercore/CustomerCoreApplication.java",
+      "qualified_name": "com.example.customercore.CustomerCore"
+    },
+    {
+      "collections": [],
+      "data": [],
+      "data_structures": [],
+      "enums": [],
+      "name": "ReportService",
+      "origin_file": "src/report-service/src/com/example/reportservice/ReportServiceApplication.java",
+      "qualified_name": "com.example.reportservice.ReportService"
+    }
+  ],
+  "microservices": [
+    {
+      "data": [
+        {
+          "name": "public",
+          "values": {}
+        },
+        {
+          "name": "functional",
+          "values": {}
+        }
+      ],
+      "interfaces": [],
+      "name": "CustomerCore",
+      "origin_file": "src/customer-core/src/com/example/customercore/CustomerCoreApplication.java",
+      "qualified_name": "com.example.customercore.CustomerCore"
+    },
+    {
+      "data": [
+        {
+          "name": "public",
+          "values": {}
+        },
+        {
+          "name": "functional",
+          "values": {}
+        }
+      ],
+      "interfaces": [],
+      "name": "ReportService",
+      "origin_file": "src/report-service/src/com/example/reportservice/ReportServiceApplication.java",
+      "qualified_name": "com.example.reportservice.ReportService"
+    }
+  ],
+  "operation": [
+    {
+      "data": [
+        {
+          "name": "ComposeService",
+          "values": {
+            "Name": "customer-core"
+          }
+        },
+        {
+          "name": "ServiceProperties",
+          "values": {
+            "serverPort": "8110",
+            "springApplicationName": "customer-core"
+          }
+        }
+      ],
+      "depends_on": [],
+      "deployed_services": [
+        {
+          "name": "CustomerCore",
+          "qualified_name": "com.example.customercore.CustomerCore"
+        }
+      ],
+      "name": "CustomerCoreContainer",
+      "node_type": "CONTAINER",
+      "operation_environment": "eclipse-temurin:21-jre",
+      "origin_file": "src/docker-compose.yml",
+      "qualified_name": "CustomerCoreContainer"
+    },
+    {
+      "data": [
+        {
+          "name": "ComposeService",
+          "values": {
+            "Name": "report-service"
+          }
+        },
+        {
+          "name": "ServiceProperties",
+          "values": {
+            "serverPort": "8120",
+            "springApplicationName": "report-service"
+          }
+        }
+      ],
+      "depends_on": [],
+      "deployed_services": [
+        {
+          "name": "ReportService",
+          "qualified_name": "com.example.reportservice.ReportService"
+        }
+      ],
+      "name": "ReportServiceContainer",
+      "node_type": "CONTAINER",
+      "operation_environment": "eclipse-temurin:21-jre",
+      "origin_file": "src/docker-compose.yml",
+      "qualified_name": "ReportServiceContainer"
+    }
+  ]
+}

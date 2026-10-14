@@ -361,16 +361,48 @@ class DockerPlugin(Plugin):
         return values
 
     def __base_image(self, dockerfile: str) -> str | None:
+        """Find the image the container actually runs on.
+
+        A multi-stage Dockerfile names several. The **last** ``FROM`` is the
+        one that matters: earlier stages are build scaffolding and are
+        discarded, so only the final stage becomes the running container. Where
+        both stages name the same image - as a single-stage Dockerfile does,
+        and as Lakeside Mutual's did before it moved off a withdrawn base
+        image - first and last agree and the distinction is invisible.
+
+        A stage may also be built ``FROM`` an earlier stage by its alias, which
+        names no image at all. Those are skipped, so the result is always an
+        image rather than a stage name.
+
+        Args:
+            dockerfile: the contents of a Dockerfile.
+
+        Returns:
+            The image of the final stage, or ``None`` if the file declares no
+            usable ``FROM``.
+        """
+        stages: dict[str, str] = {}
+        runtime: str | None = None
+
         for line in dockerfile.splitlines():
             stripped = line.strip()
             if not stripped.upper().startswith(DOCKERFILE_FROM + " "):
                 continue
-            # "FROM <image> [AS <stage>]" - a multi stage build names several,
-            # the first one is the environment the build starts from.
+            # "FROM <image> [AS <stage>]"
             parts = stripped.split()
-            if len(parts) >= 2:
-                return parts[1]
-        return None
+            if len(parts) < 2:
+                continue
+            image = parts[1]
+            alias = parts[3] if len(parts) >= 4 and parts[2].upper() == "AS" else None
+
+            # "FROM <earlier-stage>" names a stage, not an image: resolve it
+            # back to the image that stage was built from.
+            resolved = stages.get(image, image)
+            if alias is not None:
+                stages[alias] = resolved
+            runtime = resolved
+
+        return runtime
 
     def __lies_below(self, path: str, directory: str) -> bool:
         return PurePath(path).is_relative_to(PurePath(directory))
