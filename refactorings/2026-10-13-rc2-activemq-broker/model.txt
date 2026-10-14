@@ -1,0 +1,24 @@
+proposal      2026-10-13 rc2-activemq-broker
+smell         Non-Secured Service-to-Service Communications (Ponce et al. 2022, 3.7)
+refactoring   Use Mutual TLS
+skill         resolve-non-secured-communication, as of lemma 69716c315eb0
+              (copied verbatim as skill.md - this is the version that ran,
+               before the clean-checkout criterion was added in d9db83bc)
+
+model         claude-opus-5
+cli           2.1.286 (Claude Code)
+session       2cde6bd2-e037-48ac-ae79-c5e890bf9f7b
+turns         100
+duration_s    782
+cost_usd      6.55
+result        success  is_error=False
+
+mrf           1354729ba313
+lemma         69716c315eb0
+target        357ca2db7e6b  (LakesideMutual)
+
+note          An earlier attempt at this proposal (session
+              3ea76283-8bcd-45fa-a62b-e0ab6442dcec, 28 turns, 163 s, $0.91)
+              ended on an account usage limit having made no edit. It returned
+              subtype "success" with is_error true, which is why the machinery
+              must test is_error rather than subtype.

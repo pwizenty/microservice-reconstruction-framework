@@ -114,6 +114,7 @@ Noticed while building the two diagram bundles; none of them is a defect.
 | E2 | Plugin registration still hand-wired, against **Accepted** ADR-0002 | all ten ADRs are now Accepted (2026-10-13), so the three-place wiring - `PluginType`, the CLI `choices`, the handler's phase branch - is a deviation rather than a pending question. Migrating to entry points in `pyproject.toml` removes it |
 | E3 | `../lemma/de.fhdo.lemma.servicedsl.extractor` build config contradicts itself | `build.properties` says `output.. = bin/`, the committed `.classpath` says `target/classes`. The local working copy fixes it but also carries m2e entries, which is why it has been kept out of commits. Wants the output-folder change alone, in its own commit |
 | E4 | `temp.txt` in the LEMMA working copy | pre-existing, untracked |
+| ~~E5~~ | ~~**Lakeside Mutual cannot be built as a container system**~~ | **done, 2026-10-14.** Its Dockerfiles named `openjdk:21-slim-buster`, withdrawn from Docker Hub, so the system could not be built patched or unpatched. Fixed in the sample's own repository on `fix/container-base-images`: the five Java services build on `eclipse-temurin:21-jdk` and run on `:21-jre`, neither of which sets a `WORKDIR`, so the `file:./certs/...` paths of the mutual-TLS work still resolve. The *system starts* gate now runs, and a refactoring reached **VERIFIED** |
 
 ## What this list does not contain
 
