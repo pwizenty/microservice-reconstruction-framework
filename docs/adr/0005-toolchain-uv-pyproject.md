@@ -1,6 +1,6 @@
 # ADR-0005: Toolchain – uv, pyproject.toml, Python ≥ 3.12
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-24
 - Deciders: Philip Wizenty
 - Amended by: ADR-0007 (documentation)
