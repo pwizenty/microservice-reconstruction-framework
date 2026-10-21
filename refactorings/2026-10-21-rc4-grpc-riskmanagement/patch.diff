@@ -1,0 +1,460 @@
+diff --git a/README.md b/README.md
+index 2165380..f229579 100644
+--- a/README.md
++++ b/README.md
+@@ -56,7 +56,7 @@ Detailed setup instructions can be found in each application's README file. To c
+ 1. Install [Node](https://nodejs.org/en/). Version 12 or later is required. You can check the currently installed version by running `node --version`.
+ 1. Install Python. We don't use Python ourselves, but some Node.js packages require native addons that are built using node-gyp, which requires Python. See the [node-gyp README for details on which Python version to install](https://github.com/nodejs/node-gyp#on-unix).
+ 1. Install Maven (see [https://maven.apache.org](https://maven.apache.org) for installation instructions).
+-1. Generate the development certificates by running `bash ./generate-certificates.sh`. The Customer Core serves its API over mutual TLS, and so does the ActiveMQ broker hosted by the Policy Management backend, so every service that talks to either needs a key store and a trust store. These are generated rather than committed, because they contain private keys; they are for development only. The `run_all_applications.sh` and `run_customer_management_applications.sh` scripts run this step for you.
++1. Generate the development certificates by running `bash ./generate-certificates.sh`. The Customer Core serves its API over mutual TLS, the ActiveMQ broker hosted by the Policy Management backend does the same, and so does the gRPC endpoint of the Risk Management server, so every service on either end of those channels needs a key store and a trust store. These are generated rather than committed, because they contain private keys; they are for development only. The `run_all_applications.sh` and `run_customer_management_applications.sh` scripts run this step for you.
+ 1. Run the `run_all_applications` script suitable for your platform. Note that the frontend applications might be running before the backends are ready. In that case, just reload the page in the browser.
+ 
+ If the script exits, one of the applications could not be started. For troubleshooting, we recommend to start the applications individually. Note that you don't need to start all applications. The overview diagram above can be used to figure out the dependencies of each service. 
+@@ -73,7 +73,7 @@ consult the README of the corresponding component:
+ | [Customer Self-Service Frontend](customer-self-service-frontend) | 3000 (Web server) |
+ | [Policy Management Frontend](policy-management-frontend) | 3010 (Web server) |
+ | [Customer Management Frontend](customer-management-frontend) | 3020 (Web server) |
+-| [Risk Management Server](risk-management-server) | 50051 (gRPC server) |
++| [Risk Management Server](risk-management-server) | 50051 (gRPC server, mutual TLS) |
+ | [Risk Management Client](risk-management-client) | - (CLI Client) |
+ | [Spring Boot Admin](spring-boot-admin) | 9000 (Web server) |
+ 
+diff --git a/REFACTORING-NOTES.md b/REFACTORING-NOTES.md
+index 16ffcd0..3151572 100644
+--- a/REFACTORING-NOTES.md
++++ b/REFACTORING-NOTES.md
+@@ -428,3 +428,209 @@ Everything below was run in this worktree.
+ - **Certificate validity is 365 days** and nothing rotates them. The new
+   `risk-management-server` certificate expires a few days after the other four,
+   since it was issued later.
++
++---
++
++# Refactoring notes: mutual TLS for the Risk Management gRPC endpoint
++
++Resolves the same security smell, *Non-Secured Service-to-Service
++Communications* (Ponce et al. 2022, JSS 192:111393, §3.7), with the same
++refactoring, **Use Mutual TLS**, for root cause 4 of 4 and the last one left in
++this tree: the gRPC endpoint the Risk Management Server binds, which the
++reconstructed model reported as
++
++```
++@javaWithSpring::_aspects.GrpcServer(host = "0.0.0.0", port = "50051",
++    transportSecurity = "plaintext")
++```
++
++Nothing belonging to the earlier root causes was changed. The Customer Core's
++connector, the ActiveMQ broker's two connectors and all of their clients are as
++the preceding sections describe them. The Risk Management Server's STOMP
++consumer was likewise left alone; only its gRPC binding changed.
++
++## What changed
++
++### The server: Risk Management Server
++
++`risk-management-server/index.js`
++
++`startGRPCServer()` bound the port with `grpc.ServerCredentials.createInsecure()`.
++It now binds with credentials built by a new `grpcServerCredentials()` function:
++
++```js
++grpc.ServerCredentials.createSsl(
++  fs.readFileSync(resolve(grpc_config.caFile)),
++  [{
++    private_key: fs.readFileSync(resolve(grpc_config.keyFile)),
++    cert_chain: fs.readFileSync(resolve(grpc_config.certFile)),
++  }],
++  true
++)
++```
++
++The third argument is what makes this mutual rather than plain TLS: gRPC
++requests a client certificate and rejects the call when the client presents
++none, or presents one the CA did not sign. Without it the channel would be
++encrypted but the peer unauthenticated, which is a weaker refactoring than §3.7
++cites.
++
++The first argument is the CA certificate, not the server's own certificate — it
++is the authority incoming client certificates are checked against.
++
++The `bindAsync` callback now also checks its `error` argument, which the
++plaintext version ignored. An insecure bind effectively cannot fail; a TLS bind
++can, and silently calling `server.start()` on a failed bind would have produced
++a process that looks alive and serves nothing.
++
++### The client: Risk Management Client
++
++`risk-management-client/index.js`
++
++`grpc.credentials.createInsecure()` became a new `clientCredentials()` function
++returning `grpc.credentials.createSsl(ca, key, cert)`. All three arguments are
++needed: with none, the client would verify the server against the system root
++certificates and present nothing, which the server now rejects.
++
++The client addresses the server as `localhost`, which is among the subject
++alternative names the generated certificates carry, so the host name check
++passes without anything being relaxed.
++
++### Configuration
++
++The three paths live in each service's `config.json` rather than in the source,
++matching how the STOMP leg was done in root cause 2. They are resolved against
++the service's own directory, so a relative path works regardless of where the
++process was started from.
++
++`risk-management-server/config.json`, under the existing `grpc` key:
++
++```json
++"caFile": "./certs/ca.crt",
++"keyFile": "./certs/risk-management-server.key",
++"certFile": "./certs/risk-management-server.crt.pem"
++```
++
++`risk-management-client/config.json`, under its existing `gRPC` key, points at
++`risk-management-client.key` and `risk-management-client.crt.pem` and the same
++`ca.crt`. The two services spell the config key differently (`grpc` versus
++`gRPC`); that inconsistency predates this change and was left as it is, since
++renaming a key is not part of this refactoring.
++
++### Certificates
++
++`generate-certificates.sh` gained `risk-management-client` in its `SERVICES`
++list, so the client now gets a key pair signed by the same development CA. The
++server already had one from root cause 2 and reuses it for the gRPC endpoint;
++no second certificate was issued for the same service.
++
++The script's PEM export is guarded by `command -v openssl`. That guard is fine
++for the Java services, which read PKCS#12 stores and only use the PEM files for
++`openssl s_client` checks, but both Risk Management peers are Node services and
++Node's TLS stack cannot read a PKCS#12 store. The script now fails with an
++explicit message rather than silently producing material those two cannot use.
++
++No generated key material is committed; `certs/` and `*.p12` were already in
++`.gitignore` from root cause 1 and cover the new files.
++
++### Docker Compose
++
++Only the comment above the Risk Management Server's volume mount changed, to
++say that the `certs/` mount now serves both of its channels. The mount itself
++already provided exactly the three files the gRPC endpoint needs, so no new
++mount, port or environment variable was required.
++
++### Documentation
++
++The root `README.md` now names the gRPC endpoint in the certificate-generation
++step and marks port 50051 as mutual TLS. Both Risk Management READMEs describe
++the new requirement and point at the script.
++
++### Tests
++
++Neither Node project has a test suite — both `package.json` files carry the
++default `"test": "echo \"Error: no test specified\" && exit 1"` stub, unchanged.
++So no test was disabled, no assertion weakened and no test configuration needed
++updating. Nothing was changed in the Java services, whose suites this change
++does not touch.
++
++## What was assumed
++
++- **The client keeps a certificate of its own rather than reusing the server's.**
++  The Risk Management Client is a separate component with a separate identity,
++  and mutual TLS exists to authenticate peers; letting it present the server's
++  certificate would authenticate nothing meaningful. This is why
++  `generate-certificates.sh` grew a sixth service rather than copying files.
++- **TLS is unconditional on this endpoint, with no plaintext fallback.** The
++  STOMP leg has an `ssl` flag in `config.json` that can select plaintext; the
++  gRPC leg deliberately does not. A configurable fallback would leave a
++  plaintext path in the code for the reconstruction to find, and the smell is
++  about what the channel accepts, not about what it accepts by default.
++- **`localhost` is the client's address.** The client is not in
++  `docker-compose.yml` and is documented as being run from its own directory
++  against a locally running server, so its configured host was left unchanged.
++  The generated certificates carry the Compose service name, `localhost` and
++  `127.0.0.1` as subject alternative names, so a client moved into the
++  deployment would work by changing the host alone.
++- **The existing `certs/` volume mount is the delivery mechanism in Docker.**
++  Baking certificates into the image was not considered, for the same reason as
++  in the earlier root causes: they are development-only material.
++
++## What was verified
++
++- `bash ./generate-certificates.sh` run from a tree with no `certs/` directory
++  produces the client's key pair alongside the existing five, and a second run
++  is idempotent.
++- `git ls-files` matching `*.p12 *.jks *.key *.crt *.pem *.csr *certs*` returns
++  nothing: no generated key material is tracked.
++- The server starts and logs `Listening for requests from Risk Management
++  Client on 0.0.0.0:50051 (mutual TLS, client certificate required)`.
++- The server still consumes its queue: `consumeEvents()` is unchanged and the
++  startup log still reports the STOMP connection attempt over TLS. In this
++  isolated worktree the broker is not running, so those connection errors are
++  expected; the gRPC binding is independent of it and came up regardless.
++- `node index.js run <path>` from `risk-management-client` completes against
++  the TLS endpoint and writes the report. The server logged `Received request
++  from Risk Management Client.` and `Sent response to Risk Management Client.`,
++  so the full round trip ran over mutual TLS.
++- `openssl s_client -connect localhost:50051 -alpn h2` shows the server
++  presenting its `risk-management-server` certificate issued by the Lakeside
++  Mutual Development CA, and an `Acceptable client certificate CA names` list
++  containing that CA — the server does request a client certificate.
++- **Negative: no client certificate.** A client built with
++  `grpc.credentials.createSsl(ca)` alone is rejected with `tlsv13 alert
++  certificate required`. It never reached the request handler.
++- **Negative: certificate from another authority.** A client presenting a
++  self-signed certificate for `CN=rogue` is rejected at the TLS layer
++  (`Connection dropped`) and likewise never reached the handler.
++
++The two negative checks were throwaway scripts, run and then deleted; they are
++not part of the patch.
++
++## What could not be verified, and known consequences
++
++- **The Docker Compose deployment was not started.** The verification above ran
++  the server and client directly on the host. The Compose file's only change is
++  a comment, and the mount it describes already carried the needed files, but
++  the containerised path was not exercised.
++- **The client is not part of the deployment**, so no automated gate exercises
++  the call. Its half of this change rests on the direct run recorded above and
++  on review, which is the situation the recipe anticipates for this channel.
++- **The reconstruction was not re-run.** Whether MRF reads
++  `transportSecurity = "tls"` and a `clientAuth` requiring a certificate out of
++  the `createSsl(..., true)` call is the detection toolchain's business and was
++  not checked from here.
++- **Node 26 was used locally**, while the server's Dockerfile pins `node:16`.
++  `@grpc/grpc-js` has supported `createSsl` with client authentication across
++  that range, but the handshakes recorded above were observed on the newer
++  runtime only.
++- **No authorisation beyond the channel.** Any holder of a certificate from the
++  development CA may call `trigger` — every other service in the system
++  included. §3.7 is about the channel, and per-method authorisation would be a
++  separate refactoring.
++- **Certificate validity is 365 days** and nothing rotates them. The new
++  `risk-management-client` certificate expires a few days after the others,
++  since it was issued later.
++- **Windows.** Unchanged from the earlier root causes: `generate-certificates.sh`
++  is a bash script and `riskmanager.bat` has no equivalent step, so a Windows
++  user must generate the material another way before the client will connect.
+diff --git a/docker-compose.yml b/docker-compose.yml
+index 3f6cd6b..3dbee26 100644
+--- a/docker-compose.yml
++++ b/docker-compose.yml
+@@ -133,10 +133,11 @@ services:
+     environment:
+       - "ACTIVEMQ_HOST=policy-management-backend"
+       - "ACTIVEMQ_PORT=61613"
+-    # The broker's STOMP connector requires mutual TLS, so this service needs
+-    # the PEM form of its own certificate and key plus the CA certificate. The
+-    # paths in config.json are relative to the application directory, which is
+-    # this image's WORKDIR.
++    # This service needs the PEM form of its own certificate and key plus the
++    # CA certificate for both of its channels: the broker's STOMP connector
++    # requires mutual TLS, and so does the gRPC endpoint this service itself
++    # binds. The paths in config.json are relative to the application
++    # directory, which is this image's WORKDIR.
+     volumes:
+       - "./risk-management-server/certs:/usr/src/app/certs:ro"
+     ports:
+diff --git a/generate-certificates.sh b/generate-certificates.sh
+index 910c6e5..a91305c 100644
+--- a/generate-certificates.sh
++++ b/generate-certificates.sh
+@@ -33,10 +33,15 @@ VALIDITY=365
+ #   customer-self-service-backend   calls the Customer Core, client of the broker
+ #   policy-management-backend       calls the Customer Core, hosts the broker
+ #                                   and is a client of it
+-#   risk-management-server          consumes from the broker over STOMP; the
+-#                                   only Node service, so it needs the PEM
+-#                                   files rather than the PKCS#12 store
+-SERVICES="customer-core customer-management-backend customer-self-service-backend policy-management-backend risk-management-server"
++#   risk-management-server          consumes from the broker over STOMP and
++#                                   serves the gRPC endpoint
++#   risk-management-client          calls that gRPC endpoint; not part of the
++#                                   Docker Compose deployment, but it has to
++#                                   present a certificate from this same CA
++#
++# The two risk-management peers are Node services, so they need the PEM files
++# rather than the PKCS#12 store.
++SERVICES="customer-core customer-management-backend customer-self-service-backend policy-management-backend risk-management-server risk-management-client"
+ 
+ if [ "${1:-}" = "--force" ]; then
+     echo "--force given, removing previously generated material"
+@@ -113,9 +118,18 @@ for service in $SERVICES; do
+     fi
+ 
+     # PEM copies of each service's own material. Node's TLS stack cannot read a
+-    # PKCS#12 store, so the Risk Management Server needs these; for the Java
++    # PKCS#12 store, so the two Risk Management peers need these; for the Java
+     # services they are what lets "openssl s_client" check a handshake without
+     # unpacking a store first.
++    if [ ! -f "$OUT/$service.key" ] && ! command -v openssl >/dev/null 2>&1; then
++        case "$service" in
++            risk-management-*)
++                echo "openssl is required to produce the PEM files $service reads" >&2
++                exit 1
++                ;;
++        esac
++    fi
++
+     if command -v openssl >/dev/null 2>&1 && [ ! -f "$OUT/$service.key" ]; then
+         openssl pkcs12 -in "$OUT/$service.p12" -passin "pass:$PASS" \
+             -nocerts -nodes -out "$OUT/$service.key" >/dev/null 2>&1
+diff --git a/risk-management-client/README.md b/risk-management-client/README.md
+index 1148d95..fab34c7 100644
+--- a/risk-management-client/README.md
++++ b/risk-management-client/README.md
+@@ -21,4 +21,8 @@ Now you are ready to launch the Risk Management client.
+ 
+ The Risk Management client will connect to the [gRPC](https://grpc.io/) service provided by the Risk Management server. Therefore, you should make sure that the Risk Management server is running before you start using the Risk Management client. Then,  in the `risk-management-client` directory, you can download a customer data report by running `./riskmanager run /tmp/report.csv` (on Windows, use the `riskmanager.bat` file instead: `.\riskmanager.bat run \Temp\report.csv`).
+ 
++That gRPC endpoint requires mutual TLS, so the client verifies the server against the development CA and presents its own certificate in return; the server rejects a caller that presents none.
++Run `bash ./generate-certificates.sh` in the repository root once before using the client; it writes the three PEM files that `config.json` points at into this directory's `certs/` folder.
++They are generated rather than committed, because they contain a private key.
++
+ **Warning:** Note that the customer data report only includes data about customers that have at least one insurance policy. Also, when the address of a customer changes, this update is only reflected in the customer data report once one of the customer's policies has changed or a new policy has been added.
+\ No newline at end of file
+diff --git a/risk-management-client/config.json b/risk-management-client/config.json
+index 293e72e..b4889e8 100644
+--- a/risk-management-client/config.json
++++ b/risk-management-client/config.json
+@@ -1,6 +1,9 @@
+ {
+   "gRPC": {
+     "host": "localhost",
+-    "port": 50051
++    "port": 50051,
++    "caFile": "./certs/ca.crt",
++    "keyFile": "./certs/risk-management-client.key",
++    "certFile": "./certs/risk-management-client.crt.pem"
+   }
+ }
+diff --git a/risk-management-client/index.js b/risk-management-client/index.js
+index fbcf83f..d79d384 100644
+--- a/risk-management-client/index.js
++++ b/risk-management-client/index.js
+@@ -13,6 +13,30 @@ nconf
+ 
+ const grpc_config = nconf.get('gRPC')
+ 
++/*
++The Risk Management Server's gRPC endpoint requires mutual TLS, so this client has to
++verify the server and authenticate itself to it. All three files are needed: the CA
++certificate verifies the server's certificate, and this client's own certificate and
++private key are what the server checks against that same CA before it accepts the call.
++
++createSsl() with no arguments would verify the server against the system root
++certificates and present nothing, which the server rejects. Nothing here turns
++verification off; the certificates generated by ../generate-certificates.sh carry
++"localhost" among their subject alternative names, which is why addressing the server
++by that name passes the host name check instead of needing it disabled.
++
++Paths come from config.json and are resolved against this directory, so a relative path
++works regardless of where the process was started from; an absolute path is left alone.
++*/
++function clientCredentials() {
++  const resolve = (file) => path.resolve(__dirname, file)
++  return grpc.credentials.createSsl(
++    fs.readFileSync(resolve(grpc_config.caFile)),
++    fs.readFileSync(resolve(grpc_config.keyFile)),
++    fs.readFileSync(resolve(grpc_config.certFile))
++  )
++}
++
+ function printReport(report, outputPath) {
+   fs.writeFileSync(outputPath, report.csv)
+   console.log(`Wrote results to ${outputPath}.`)
+@@ -29,7 +53,7 @@ program.command('run [output-path]').action((outputPath) => {
+ 
+   const client = new proto.RiskManagement(
+     `${grpc_config.host}:${grpc_config.port}`,
+-    grpc.credentials.createInsecure()
++    clientCredentials()
+   )
+ 
+   const bar = new ProgressBar('Processing: [:bar] :percent', {
+diff --git a/risk-management-server/README.md b/risk-management-server/README.md
+index 07b8448..fc8b3ae 100644
+--- a/risk-management-server/README.md
++++ b/risk-management-server/README.md
+@@ -23,6 +23,7 @@ The Risk Management server consumes [Document Messages](https://www.enterprisein
+ to start the Risk Management server. <!-- using MOM/EIP terminology -->
+ 
+ The broker's STOMP connector requires mutual TLS, so the Risk Management server verifies the broker against the development CA and presents its own certificate in return.
++The gRPC endpoint this service binds for the [Risk Management client](../risk-management-client) requires mutual TLS in the same way: it presents the same certificate and will only accept a client whose certificate the same development CA signed.
+ Run `bash ./generate-certificates.sh` in the repository root once before starting the service; it writes the three PEM files that `config.json` points at into this directory's `certs/` folder.
+ They are generated rather than committed, because they contain a private key.
+ 
+diff --git a/risk-management-server/config.json b/risk-management-server/config.json
+index ab49e7f..5bef6c8 100644
+--- a/risk-management-server/config.json
++++ b/risk-management-server/config.json
+@@ -12,6 +12,9 @@
+   },
+   "grpc": {
+     "host": "0.0.0.0",
+-    "port": 50051
++    "port": 50051,
++    "caFile": "./certs/ca.crt",
++    "keyFile": "./certs/risk-management-server.key",
++    "certFile": "./certs/risk-management-server.crt.pem"
+   }
+ }
+diff --git a/risk-management-server/index.js b/risk-management-server/index.js
+index b34af95..00d92fe 100644
+--- a/risk-management-server/index.js
++++ b/risk-management-server/index.js
+@@ -160,6 +160,37 @@ function handleClientRequest(dataManager, call, callback) {
+   }
+ }
+ 
++/*
++The grpcServerCredentials() function builds the credentials the gRPC endpoint is bound
++with. The endpoint requires mutual TLS, so three files are needed: the CA certificate the
++Risk Management Client's certificate is verified against, and this server's own
++certificate and private key to present to the client.
++
++The third argument to createSsl() is what makes this mutual rather than plain TLS:
++it tells gRPC to request a client certificate and to reject the call when the client
++presents none or presents one this CA did not sign. Without it the channel would be
++encrypted but the peer unauthenticated.
++
++The first argument is deliberately the CA certificate and not this server's own
++certificate - it is the authority incoming client certificates are checked against.
++
++Paths come from config.json and are resolved against this directory, so a relative path
++works regardless of where the process was started from; an absolute path is left alone.
++*/
++function grpcServerCredentials(grpc_config) {
++  const resolve = (file) => path.resolve(__dirname, file)
++  return grpc.ServerCredentials.createSsl(
++    fs.readFileSync(resolve(grpc_config.caFile)),
++    [
++      {
++        private_key: fs.readFileSync(resolve(grpc_config.keyFile)),
++        cert_chain: fs.readFileSync(resolve(grpc_config.certFile)),
++      },
++    ],
++    true
++  )
++}
++
+ /*
+ The startGRPCServer() function starts the gRPC server which listens for
+ requests from the Risk Management Client.
+@@ -176,10 +207,14 @@ function startGRPCServer(dataManager) {
+   })
+   server.bindAsync(
+     `${grpc_config.host}:${grpc_config.port}`,
+-    grpc.ServerCredentials.createInsecure(),
+-    () => {
++    grpcServerCredentials(grpc_config),
++    (error) => {
++      if (error) {
++        console.error(`Error: ${error}`)
++        return
++      }
+       console.log(
+-        `Listening for requests from Risk Management Client on ${grpc_config.host}:${grpc_config.port}`
++        `Listening for requests from Risk Management Client on ${grpc_config.host}:${grpc_config.port} (mutual TLS, client certificate required)`
+       )
+       server.start()
+     }
