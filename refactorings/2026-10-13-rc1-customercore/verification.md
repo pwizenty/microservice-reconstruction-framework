@@ -110,3 +110,67 @@ contradicts it.
 A skipped gate is not a passed one: PARTIAL means the refactoring has
 not been shown to resolve the smell, only that nothing checked
 contradicts it.
+
+## Verification, 2026-10-20T11:36:13Z
+
+**VERIFIED** — 4 passed, 0 failed, 0 skipped.
+
+- PASS clean: the patch applies to a clean checkout and the build is green
+- PASS inplace: the build is green once key material exists
+- PASS smell: findings fell from 9 to 6
+- PASS starts: the system comes up with the patch applied
+
+A skipped gate is not a passed one: PARTIAL means the refactoring has
+not been shown to resolve the smell, only that nothing checked
+contradicts it.
+
+## Verification, 2026-10-20T12:58:52Z
+
+**VERIFIED** — 4 passed, 0 failed, 0 skipped.
+
+- PASS clean: the patch applies to a clean checkout and the build is green
+- PASS inplace: the build is green once key material exists
+- PASS smell: findings fell from 9 to 6, and the addressed cause endpoint:CustomerCore has none left
+- PASS starts: the system comes up with the patch applied
+
+A skipped gate is not a passed one: PARTIAL means the refactoring has
+not been shown to resolve the smell, only that nothing checked
+contradicts it.
+
+## Verification, 2026-10-21T06:11:04Z
+
+**PARTIAL** — 3 passed, 0 failed, 1 skipped.
+
+Extent of the patch: 17 file(s), +559/-18 line(s). Not a gate - no number of files is the
+right one - but the claim that model-level input bounds a refactoring
+is a claim about extent, so it is counted rather than recalled.
+
+- PASS clean: the patch applies to a clean checkout and the build is green
+- PASS inplace: the build is green once key material exists
+- PASS smell: findings fell from 11 to 8, and the addressed cause endpoint:CustomerCore has none left
+- SKIP starts: the system comes up, and risk-management-server-1 spring-boot-admin-1  reports an unreachable peer (certificate_unknown Connection error to ECONNREFUSED SSLException SSLHandshakeException unable to find valid certification path ) - which the unpatched system reports too (Connection error to ECONNREFUSED ), so this gate cannot attribute it to the patch; see /var/folders/5q/g6s6_hd16xd2v6nr_5x4d3qc0000gn/T/lemma-start.nxVSIJvUfD.settled
+
+A skipped gate is not a passed one: PARTIAL means the refactoring has
+not been shown to resolve the smell, only that nothing checked
+contradicts it. GATES PASSED means every gate passed, which is not
+the same as the application being secure: the gates cover this smell
+and this deployment only.
+
+## Verification, 2026-10-21T06:24:32Z
+
+**GATES PASSED** — 4 passed, 0 failed, 0 skipped.
+
+Extent of the patch: 17 file(s), +559/-18 line(s). Not a gate - no number of files is the
+right one - but the claim that model-level input bounds a refactoring
+is a claim about extent, so it is counted rather than recalled.
+
+- PASS clean: the patch applies to a clean checkout and the build is green
+- PASS inplace: the build is green once key material exists
+- PASS smell: findings fell from 11 to 8, and the addressed cause endpoint:CustomerCore has none left
+- PASS starts: the system comes up, and every peer it can no longer reach (spring-boot-admin-1 ) is declared in REFACTORING-NOTES.md
+
+A skipped gate is not a passed one: PARTIAL means the refactoring has
+not been shown to resolve the smell, only that nothing checked
+contradicts it. GATES PASSED means every gate passed, which is not
+the same as the application being secure: the gates cover this smell
+and this deployment only.

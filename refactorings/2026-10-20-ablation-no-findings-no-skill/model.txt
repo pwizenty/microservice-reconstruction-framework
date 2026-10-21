@@ -1,0 +1,33 @@
+proposal      2026-10-20 ablation-no-findings-no-skill
+purpose       ABLATION. Isolates what the reconstructed models and the
+              smell-specific skill contribute, by removing both.
+smell         Non-Secured Service-to-Service Communications (Ponce et al. 2022, 3.7)
+refactoring   Use Mutual TLS
+cause         none: the request names no cause and no channel
+skill         NOT LOADED and not available: no --plugin-dir
+base          622632f  (fix/container-base-images, unpatched otherwise)
+request       one sentence: "Secure the service-to-service communication of
+              this microservice system with mutual TLS."
+
+model         claude-opus-5
+cli           2.1.292 (Claude Code)
+session       9108a123-683f-4791-9635-3111ce2de9f2
+turns         294
+duration_s    2064
+cost_usd      27.6013
+output_tokens 135681
+result        success  is_error=False
+denials       27
+
+What was removed, and what was not. Removed: the findings, the root cause, the
+channel inventory, the aspect values quoted from the models, the names of the
+affected services, and the skill's recipes and clean-checkout criterion. Kept:
+the same system and commit, the same model, the same throwaway worktree, the
+same tool allowlist, and the same invariant constraints - those are enforced by
+the harness rather than known by the model, and dropping them would change what
+the gates measure rather than weaken the proposal.
+
+Supersedes 2026-10-20-ablation-truncated, a first attempt cut off by an account
+spend limit after 114 turns.
+
+Not verified here; see verification.md.

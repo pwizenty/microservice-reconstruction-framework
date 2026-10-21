@@ -1,0 +1,806 @@
+diff --git a/.gitignore b/.gitignore
+index 557f204..6ec2a85 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -7,6 +7,10 @@ __ENV.js
+ 
+ activemq-data/
+ 
++# Development certificates for the mutual TLS connections, created by
++# generate-certificates.sh. Key material is a build product, never source.
++certs/
++
+ *.db
+ 
+ _cacache/
+diff --git a/README.md b/README.md
+index ea91460..8e8e4e6 100644
+--- a/README.md
++++ b/README.md
+@@ -56,6 +56,7 @@ Detailed setup instructions can be found in each application's README file. To c
+ 1. Install [Node](https://nodejs.org/en/). Version 12 or later is required. You can check the currently installed version by running `node --version`.
+ 1. Install Python. We don't use Python ourselves, but some Node.js packages require native addons that are built using node-gyp, which requires Python. See the [node-gyp README for details on which Python version to install](https://github.com/nodejs/node-gyp#on-unix).
+ 1. Install Maven (see [https://maven.apache.org](https://maven.apache.org) for installation instructions).
++1. Run `./generate-certificates.sh` once. The ActiveMQ broker between the Policy Management backend, the Customer Self-Service backend and the Risk Management server requires mutual TLS, and this script creates the development certificates it needs. They are not part of the repository, so the messaging between those three services will not connect until you have run it.
+ 1. Run the `run_all_applications` script suitable for your platform. Note that the frontend applications might be running before the backends are ready. In that case, just reload the page in the browser.
+ 
+ If the script exits, one of the applications could not be started. For troubleshooting, we recommend to start the applications individually. Note that you don't need to start all applications. The overview diagram above can be used to figure out the dependencies of each service. 
+@@ -78,7 +79,7 @@ consult the README of the corresponding component:
+ 
+ ## Docker
+ 
+-All projects come with Dockerfiles that can be used to run the services as Docker containers. The [docker-compose.yml](./docker-compose.yml) builds and starts all applications in a single command. See the [docker-compose.yml](./docker-compose.yml) for more information. Note that building the images takes some time (without caches, our most recent build took 6 minutes on a development machine).
++All projects come with Dockerfiles that can be used to run the services as Docker containers. The [docker-compose.yml](./docker-compose.yml) builds and starts all applications in a single command. Run `./generate-certificates.sh` before the first `docker-compose up`: the services that talk to the ActiveMQ broker mount the generated `certs` directory, because the broker requires mutual TLS. See the [docker-compose.yml](./docker-compose.yml) for more information. Note that building the images takes some time (without caches, our most recent build took 6 minutes on a development machine).
+ 
+ ## Data Stores
+ 
+diff --git a/REFACTORING-NOTES.md b/REFACTORING-NOTES.md
+new file mode 100644
+index 0000000..72bd91d
+--- /dev/null
++++ b/REFACTORING-NOTES.md
+@@ -0,0 +1,185 @@
++# Refactoring notes: mutual TLS for the ActiveMQ broker
++
++Resolves the security smell *Non-Secured Service-to-Service Communications*
++(Ponce et al. 2022, §3.7) for root cause 2 of 2: the ActiveMQ broker hosted by
++the Policy Management backend was reached over plaintext transports by every
++service that produces to or consumes from it. Six of the system's nine findings,
++across the six queues `insurance-quote-request-event-queue`,
++`customer-decision-event-queue`, `insurance-quote-response-event-queue`,
++`insurance-quote-expired-event-queue`, `policy-created-event-queue` and
++`newpolicies`, shared this one cause.
++
++The refactoring the paper prescribes is **Use Mutual TLS**, so both ends of
++every channel now authenticate each other with a certificate.
++
++The REST calls to the Customer Core are root cause 1 and are deliberately
++untouched here.
++
++## What changed
++
++### Development key material (new)
++
++- `generate-certificates.sh` — creates a throwaway CA, one shared trust store
++  holding only the CA certificate, and one PKCS#12 key store plus PEM key/cert
++  pair per participating service, into `certs/`. Idempotent; re-running keeps
++  existing material. Needs `openssl` and `keytool`.
++- `.gitignore` — `certs/` is ignored. The script is source, its output is not.
++
++Certificates carry `subjectAltName` entries for the docker-compose service
++name, the short service name, `localhost` and `127.0.0.1`, because peers
++address each other by service name under Docker and by `localhost` on a local
++run. `extendedKeyUsage` carries both `serverAuth` and `clientAuth`, since under
++mutual TLS every service is both.
++
++### The broker — `policy-management-backend`
++
++- `src/main/resources/application.properties`
++  - `policymanagement.stompBrokerBindAddress`:
++    `stomp://0.0.0.0:61613` → `stomp+ssl://0.0.0.0:61613?transport.needClientAuth=true`
++  - `policymanagement.tcpBrokerBindAddress`:
++    `tcp://0.0.0.0:61616` → `ssl://0.0.0.0:61616?transport.needClientAuth=true`
++  - new `policymanagement.brokerURL=ssl://localhost:61616` — the address this
++    service uses to reach *its own* broker as a client (see below).
++  - new `policymanagement.ssl.{keyStore,keyStorePassword,trustStore,trustStorePassword}`.
++- `.../interfaces/configuration/MessagingConfiguration.java`
++  - the broker gets an `SslContext` built from the key and trust store before
++    its connectors are added.
++  - the connection factory is now an `ActiveMQSslConnectionFactory`, configured
++    with the stores and with an explicit broker URL.
++
++Both connectors were plaintext and both were converted. **No plaintext
++connector remains**: there is no `tcp://` or `stomp://` address left anywhere in
++the broker's configuration, so the least-protected connector the broker offers
++is a TLS one.
++
++`transport.needClientAuth=true` (not `wantClientAuth`) is what makes this mutual
++rather than plain TLS: the broker refuses a client that presents no certificate.
++
++### The Java clients
++
++`policy-management-backend` is a client of its own broker as well as its host:
++its `connectionFactory()` bean previously set no broker URL at all and so fell
++back to ActiveMQ's default of `tcp://localhost:61616`. It now connects
++explicitly over `ssl://localhost:61616` with its own key store.
++
++`customer-self-service-backend`:
++
++- `src/main/resources/application.properties`
++  - `policymanagement.tcpBrokerBindAddress`:
++    `tcp://localhost:61616` → `ssl://localhost:61616`
++  - new `customerselfservice.ssl.{keyStore,keyStorePassword,trustStore,trustStorePassword}`.
++- `.../interfaces/configuration/MessagingConfiguration.java` — the connection
++  factory is now an `ActiveMQSslConnectionFactory` configured with the stores.
++  Three bean methods gained a `throws Exception` clause, because
++  `ActiveMQSslConnectionFactory`'s store setters declare one.
++
++### The Node consumer — `risk-management-server`
++
++This service holds no `MessageChannel` aspect and contributed no finding of its
++own, but it consumes `newpolicies` over STOMP and would not have been able to
++reach the broker after the conversion.
++
++- `config.json` — new `cafile`, `keyfile`, `certfile` entries.
++- `index.js` — the `stompit` connect options gained `ssl: true` (which makes
++  `stompit` connect through Node's `tls` module instead of `net`), plus `ca`,
++  `key` and `cert`. `rejectUnauthorized` is left at its secure default.
++  Relative paths are resolved against the service's own directory, so the
++  behaviour does not depend on the working directory.
++
++### `docker-compose.yml`
++
++- `POLICYMANAGEMENT_TCPBROKERBINDADDRESS` for the Customer Self-Service backend:
++  `tcp://policy-management-backend:61616` → `ssl://policy-management-backend:61616`.
++- The three participating services mount `./certs` read-only at `/certs` and get
++  environment overrides pointing at that path, because the certificates are
++  generated on the host and the images are built without them.
++
++### Documentation
++
++`README.md`, `policy-management-backend/README.md`,
++`customer-self-service-backend/README.md` and
++`risk-management-server/README.md` gained a sentence each pointing at
++`generate-certificates.sh`, because the messaging no longer works on a fresh
++clone until it has been run once.
++
++### Tests
++
++`policy-management-backend`'s `RiskManagementMessageProducerTests` started a
++fixture broker on `tcp://localhost:61616`. That fixture now uses the **in-VM
++transport** (`vm://...?create=false`) instead: the broker is named, kept
++non-persistent, and reached without opening a network socket at all.
++
++No test is disabled and no assertion was weakened — both tests still send
++events through a real broker and assert on what comes back. The reason for
++`vm://` rather than `ssl://` is the clean-checkout requirement below: a fixture
++on `ssl://` would need key material that the repository does not and must not
++carry. An in-VM transport is not a network channel, so it is not an instance of
++the smell either.
++
++## Verification
++
++- `policy-management-backend`: `./mvnw test` → 19 tests, BUILD SUCCESS.
++- `customer-self-service-backend`: `./mvnw test` → 12 tests, BUILD SUCCESS.
++- Both suites were re-run with `certs/` moved out of the way, to reproduce a
++  clean checkout of this patch with no generated key material present. Both
++  still pass. This works because every client hands its stores to ActiveMQ as
++  *paths*, which are only opened when a connection is actually established, so
++  a context that starts without a reachable broker never touches a store.
++- The broker was started with `./mvnw spring-boot:run` and logged both
++  connectors as `stomp+ssl://...:61613?transport.needClientAuth=true` and
++  `ssl://...:61616?transport.needClientAuth=true`.
++- `openssl s_client` against both ports, presenting a client certificate,
++  completes the handshake with `Verify return code: 0` and shows the broker
++  asking for a certificate (`Acceptable client certificate CA names`).
++- The same connection *without* a client certificate is rejected: the broker
++  logs `Empty client certificate chain` and sends a `certificate_required`
++  alert. Client authentication is therefore required, not merely requested —
++  this is mutual TLS and not plain TLS.
++- With the broker running, `customer-self-service-backend` and the broker's own
++  host were started and neither logged a single `Could not refresh JMS
++  Connection`, so both Java clients established their mutually authenticated
++  connections.
++- `risk-management-server` was started with `npm start` and subscribed without a
++  connection error. A frame sent to `/queue/newpolicies` over STOMP+TLS with a
++  client certificate was logged by it as `An event has been consumed`, so the
++  Node consumer's end of the channel works in both directions.
++
++## Assumptions
++
++- **A throwaway CA is the right answer for a sample system.** The script says so
++  in its header. One CA, one trust store, one key store per service.
++- **Store password `changeit`** for all development material, in the properties
++  files next to the already-present development credentials (`spring.activemq.password=secret`,
++  the hardcoded API keys). This is consistent with how the sample system already
++  handles development secrets; it is not a pattern for production.
++- **`policymanagement.tcpBrokerBindAddress` kept its name** in both services even
++  though it now holds an `ssl://` address. Renaming it would have broken the
++  existing `POLICYMANAGEMENT_TCPBROKERBINDADDRESS` environment override and the
++  Kubernetes manifest that sets it, for no functional gain.
++- **Certificate paths default to `../certs/...`**, which is correct for the
++  documented way of running the services (each from its own subdirectory, as
++  `run_all_applications.sh` does). Docker overrides them by environment.
++- **The Policy Management backend reaches its own broker over the network**
++  (`ssl://localhost:61616`) rather than in-VM. Keeping it on a real TLS
++  connection means its own six producer and consumer channels are protected by
++  the same mechanism as everybody else's, which is what the smell is about.
++
++## Not verified / out of scope
++
++- **The Kubernetes manifests under `kubernetes/` were not changed.** They still
++  set `POLICYMANAGEMENT_TCPBROKERBINDADDRESS=tcp://...` and
++  `ACTIVEMQ_PORT=61613` without TLS material, so a Kubernetes deployment needs a
++  matching change (a secret holding the stores, mounted into the pods, and the
++  `ssl://` address). This was left out deliberately: the refactoring had to be
++  expressed in application configuration and code to be verifiable here.
++- **`docker-compose up` was not run.** The three services were verified running
++  locally against `localhost`, which exercises the same configuration, but the
++  containerised path — the `./certs` bind mounts and the environment overrides
++  that go with them, and the certificates' `policy-management-backend`
++  `subjectAltName` — was not executed.
++- **No business event was pushed through the whole chain.** The queue was
++  exercised with a synthetic frame rather than by creating a policy through the
++  Policy Management REST API, which would also have needed the Customer Core
++  and so the still-plaintext root cause 1.
++- **The frontends and the Risk Management client are unaffected** — they do not
++  talk to the broker.
+diff --git a/customer-self-service-backend/README.md b/customer-self-service-backend/README.md
+index dd1a3b9..c872af7 100644
+--- a/customer-self-service-backend/README.md
++++ b/customer-self-service-backend/README.md
+@@ -2,7 +2,8 @@
+ 
+ The Customer Self-Service backend provides an HTTP resource API for the Customer Self-Service frontend. Additionally, it connects
+ to an [ActiveMQ](http://activemq.apache.org/) broker provided by the Policy Management backend in order to process insurance quote
+-requests.
++requests. That connection uses mutual TLS, so run `./generate-certificates.sh` in the repository root once to create the
++development certificates; their paths and the store password are configured in `src/main/resources/application.properties`.
+ 
+ ## IDE 
+ 
+diff --git a/customer-self-service-backend/src/main/java/com/lakesidemutual/customerselfservice/interfaces/configuration/MessagingConfiguration.java b/customer-self-service-backend/src/main/java/com/lakesidemutual/customerselfservice/interfaces/configuration/MessagingConfiguration.java
+index a9748e5..bd26b7f 100644
+--- a/customer-self-service-backend/src/main/java/com/lakesidemutual/customerselfservice/interfaces/configuration/MessagingConfiguration.java
++++ b/customer-self-service-backend/src/main/java/com/lakesidemutual/customerselfservice/interfaces/configuration/MessagingConfiguration.java
+@@ -3,7 +3,7 @@ package com.lakesidemutual.customerselfservice.interfaces.configuration;
+ import java.util.HashMap;
+ import java.util.Map;
+ 
+-import org.apache.activemq.ActiveMQConnectionFactory;
++import org.apache.activemq.ActiveMQSslConnectionFactory;
+ import org.springframework.beans.factory.annotation.Value;
+ import org.springframework.context.annotation.Bean;
+ import org.springframework.context.annotation.Configuration;
+@@ -17,11 +17,32 @@ import com.lakesidemutual.customerselfservice.domain.insurancequoterequest.Insur
+ import com.lakesidemutual.customerselfservice.domain.insurancequoterequest.InsuranceQuoteResponseEvent;
+ import com.lakesidemutual.customerselfservice.domain.insurancequoterequest.PolicyCreatedEvent;
+ 
++/**
++ * The MessagingConfiguration class configures this service as a client of the ActiveMQ broker
++ * hosted by the Policy Management backend. The connection uses mutual TLS: the broker demands
++ * a client certificate, which this service presents from its own key store, and verifies the
++ * broker's certificate against the trust store. The development key material is created by
++ * generate-certificates.sh in the repository root.
++ */
+ @Configuration
+ public class MessagingConfiguration {
++	private static final String STORE_TYPE = "PKCS12";
++
+ 	@Value("${policymanagement.tcpBrokerBindAddress}")
+ 	private String brokerURL;
+ 
++	@Value("${customerselfservice.ssl.keyStore}")
++	private String keyStore;
++
++	@Value("${customerselfservice.ssl.keyStorePassword}")
++	private String keyStorePassword;
++
++	@Value("${customerselfservice.ssl.trustStore}")
++	private String trustStore;
++
++	@Value("${customerselfservice.ssl.trustStorePassword}")
++	private String trustStorePassword;
++
+ 	@Value("${spring.activemq.user}")
+ 	private String username;
+ 
+@@ -29,17 +50,28 @@ public class MessagingConfiguration {
+ 	private String password;
+ 
+ 	@Bean
+-	public JmsTemplate jmsTemplate(){
++	public JmsTemplate jmsTemplate() throws Exception {
+ 		JmsTemplate template = new JmsTemplate();
+ 		template.setMessageConverter(jacksonJmsMessageConverter());
+ 		template.setConnectionFactory(connectionFactory());
+ 		return template;
+ 	}
+ 
++	/**
++	 * The stores are handed over as paths rather than as loaded key and trust managers, so
++	 * that they are only read when a connection is actually opened. A test that starts this
++	 * context without a broker therefore never touches the key material.
++	 */
+ 	@Bean
+-	public ActiveMQConnectionFactory connectionFactory(){
+-		ActiveMQConnectionFactory connectionFactory = new ActiveMQConnectionFactory();
++	public ActiveMQSslConnectionFactory connectionFactory() throws Exception {
++		ActiveMQSslConnectionFactory connectionFactory = new ActiveMQSslConnectionFactory();
+ 		connectionFactory.setBrokerURL(brokerURL);
++		connectionFactory.setKeyStore(keyStore);
++		connectionFactory.setKeyStorePassword(keyStorePassword);
++		connectionFactory.setKeyStoreType(STORE_TYPE);
++		connectionFactory.setTrustStore(trustStore);
++		connectionFactory.setTrustStorePassword(trustStorePassword);
++		connectionFactory.setTrustStoreType(STORE_TYPE);
+ 		connectionFactory.setUserName(username);
+ 		connectionFactory.setPassword(password);
+ 		connectionFactory.setTrustAllPackages(true);
+@@ -61,7 +93,7 @@ public class MessagingConfiguration {
+ 	}
+ 
+ 	@Bean
+-	public DefaultJmsListenerContainerFactory jmsListenerContainerFactory() {
++	public DefaultJmsListenerContainerFactory jmsListenerContainerFactory() throws Exception {
+ 		DefaultJmsListenerContainerFactory factory = new DefaultJmsListenerContainerFactory();
+ 		factory.setConnectionFactory(connectionFactory());
+ 		factory.setConcurrency("1-1");
+diff --git a/customer-self-service-backend/src/main/resources/application.properties b/customer-self-service-backend/src/main/resources/application.properties
+index c6f10e6..f68aae9 100644
+--- a/customer-self-service-backend/src/main/resources/application.properties
++++ b/customer-self-service-backend/src/main/resources/application.properties
+@@ -17,7 +17,18 @@ apikey.header=Authorization
+ # container or managed in a data store. We provide it here for convenience:
+ apikey.value=b318ad736c6c844b
+ 
+-policymanagement.tcpBrokerBindAddress=tcp://localhost:61616
++# The ActiveMQ broker hosted by the Policy Management backend. The broker only
++# offers TLS transports and demands a client certificate, so this service
++# connects over ssl:// and presents the certificate from its own key store.
++policymanagement.tcpBrokerBindAddress=ssl://localhost:61616
++
++# Key and trust material for the mutual TLS connection. Run
++# ./generate-certificates.sh in the repository root to create it; it is
++# deliberately not part of the repository.
++customerselfservice.ssl.keyStore=../certs/customer-self-service-backend.p12
++customerselfservice.ssl.keyStorePassword=changeit
++customerselfservice.ssl.trustStore=../certs/truststore.p12
++customerselfservice.ssl.trustStorePassword=changeit
+ 
+ spring.application.name = customer-self-service-backend
+ 
+diff --git a/docker-compose.yml b/docker-compose.yml
+index bd0728a..d46fc0a 100644
+--- a/docker-compose.yml
++++ b/docker-compose.yml
+@@ -67,6 +67,11 @@ services:
+     environment:
+       - "CUSTOMERCORE_BASEURL=http://customer-core:8110"
+       - "SPRING_BOOT_ADMIN_CLIENT_URL=http://spring-boot-admin:9000"
++      - "POLICYMANAGEMENT_SSL_KEYSTORE=/certs/policy-management-backend.p12"
++      - "POLICYMANAGEMENT_SSL_TRUSTSTORE=/certs/truststore.p12"
++    volumes:
++      # Created by ./generate-certificates.sh before the first `docker-compose up`.
++      - "./certs:/certs:ro"
+     ports:
+       - "8090:8090"
+       - "61613:61613"
+@@ -90,8 +95,13 @@ services:
+       - policy-management-backend
+     environment:
+       - "CUSTOMERCORE_BASEURL=http://customer-core:8110"
+-      - "POLICYMANAGEMENT_TCPBROKERBINDADDRESS=tcp://policy-management-backend:61616"
++      - "POLICYMANAGEMENT_TCPBROKERBINDADDRESS=ssl://policy-management-backend:61616"
+       - "SPRING_BOOT_ADMIN_CLIENT_URL=http://spring-boot-admin:9000"
++      - "CUSTOMERSELFSERVICE_SSL_KEYSTORE=/certs/customer-self-service-backend.p12"
++      - "CUSTOMERSELFSERVICE_SSL_TRUSTSTORE=/certs/truststore.p12"
++    volumes:
++      # Created by ./generate-certificates.sh before the first `docker-compose up`.
++      - "./certs:/certs:ro"
+     ports:
+       - "8080:8080"
+ 
+@@ -117,5 +127,11 @@ services:
+     environment:
+       - "ACTIVEMQ_HOST=policy-management-backend"
+       - "ACTIVEMQ_PORT=61613"
++      - "ACTIVEMQ_CAFILE=/certs/ca.crt"
++      - "ACTIVEMQ_KEYFILE=/certs/risk-management-server.key"
++      - "ACTIVEMQ_CERTFILE=/certs/risk-management-server.crt"
++    volumes:
++      # Created by ./generate-certificates.sh before the first `docker-compose up`.
++      - "./certs:/certs:ro"
+     ports:
+       - "50051:50051"
+diff --git a/generate-certificates.sh b/generate-certificates.sh
+new file mode 100644
+index 0000000..d0da38f
+--- /dev/null
++++ b/generate-certificates.sh
+@@ -0,0 +1,92 @@
++#!/usr/bin/env bash
++#
++# Generates throwaway certificates for the mutual TLS connections between the
++# Lakeside Mutual services (currently: the ActiveMQ broker hosted by the Policy
++# Management backend, its Java clients and the Node.js Risk Management server).
++#
++# DEVELOPMENT ONLY. The CA private key is created right here and is trusted by
++# every service, so anything signed with it is accepted by every peer. Never
++# use the output of this script anywhere but a developer machine, and never
++# commit it - `certs/` is in .gitignore for that reason.
++#
++# Usage:
++#   ./generate-certificates.sh
++#
++# The script is idempotent: material that already exists is left alone, so a
++# second run is a no-op. Delete the `certs/` directory to start over.
++#
++# Requires `openssl` and the JDK's `keytool` (both are already needed to build
++# and run the system).
++#
++set -euo pipefail
++
++PASS=changeit
++OUT="$(cd "$(dirname "$0")" && pwd)/certs"
++DAYS=365
++
++# Each entry is "<name>|<subjectAltName list>". The name doubles as the file
++# base name, the certificate's common name and the key store alias. The SAN
++# list has to cover every name a peer may use to address the service: the
++# docker-compose service name, the short service name used elsewhere in the
++# system, and localhost for a local run outside Docker.
++SERVICES=(
++    "policy-management-backend|DNS:policy-management-backend,DNS:policy-management,DNS:localhost,IP:127.0.0.1"
++    "customer-self-service-backend|DNS:customer-self-service-backend,DNS:customer-self-service,DNS:localhost,IP:127.0.0.1"
++    "risk-management-server|DNS:risk-management-server,DNS:risk-management,DNS:localhost,IP:127.0.0.1"
++)
++
++mkdir -p "$OUT"
++
++# One CA for the whole system.
++if [ ! -f "$OUT/ca.crt" ]; then
++    echo "Creating development CA"
++    openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days "$DAYS" \
++        -keyout "$OUT/ca.key" -out "$OUT/ca.crt" \
++        -subj "/CN=Lakeside Mutual Development CA" \
++        -addext "basicConstraints=critical,CA:TRUE" \
++        -addext "keyUsage=critical,keyCertSign,cRLSign"
++fi
++
++# One trust store, holding only the CA certificate: it is enough for every peer
++# to verify every other peer, in both directions.
++if [ ! -f "$OUT/truststore.p12" ]; then
++    echo "Creating trust store"
++    keytool -importcert -noprompt -alias ca -file "$OUT/ca.crt" \
++        -keystore "$OUT/truststore.p12" -storetype PKCS12 -storepass "$PASS"
++fi
++
++for entry in "${SERVICES[@]}"; do
++    name="${entry%%|*}"
++    sans="${entry##*|}"
++
++    if [ -f "$OUT/$name.p12" ]; then
++        echo "Keeping existing material for $name"
++        continue
++    fi
++
++    echo "Issuing certificate for $name"
++
++    openssl req -newkey rsa:2048 -nodes \
++        -keyout "$OUT/$name.key" -out "$OUT/$name.csr" \
++        -subj "/CN=$name"
++
++    # extendedKeyUsage carries both serverAuth and clientAuth, because under
++    # mutual TLS every service is a server for some connections and a client
++    # for others.
++    openssl x509 -req -in "$OUT/$name.csr" -sha256 -days "$DAYS" \
++        -CA "$OUT/ca.crt" -CAkey "$OUT/ca.key" -CAcreateserial \
++        -out "$OUT/$name.crt" \
++        -extfile <(printf 'subjectAltName=%s\nextendedKeyUsage=serverAuth,clientAuth\nkeyUsage=critical,digitalSignature,keyEncipherment\n' "$sans")
++
++    rm -f "$OUT/$name.csr"
++
++    # The Java services read a PKCS#12 key store; the Node.js service reads the
++    # PEM key and certificate written above, so both forms are kept.
++    openssl pkcs12 -export \
++        -inkey "$OUT/$name.key" -in "$OUT/$name.crt" -certfile "$OUT/ca.crt" \
++        -name "$name" -passout "pass:$PASS" -out "$OUT/$name.p12"
++done
++
++echo
++echo "Development certificates are in $OUT"
++echo "Key store password: $PASS"
+diff --git a/policy-management-backend/README.md b/policy-management-backend/README.md
+index 4c6688c..dd0de25 100644
+--- a/policy-management-backend/README.md
++++ b/policy-management-backend/README.md
+@@ -38,6 +38,8 @@ By default, the Spring Boot application starts on port 8090. Additionally, it pr
+ 
+ If any of these ports is already used by a different application, you can change it in the `src/main/resources/application.properties` file.
+ 
++Both ActiveMQ connectors require mutual TLS, so the broker will not start until the development certificates exist. Run `./generate-certificates.sh` in the repository root once to create them; the paths and the store password are configured in `src/main/resources/application.properties`.
++
+ Warnings about a `java.net.ConnectException: Connection refused` can safely be ignored. See the [FAQ](../FAQ.md#im-getting-a-connection-refused-connect-exception-on-startup) for details.
+ 
+ ## Springdoc Open API documentation
+diff --git a/policy-management-backend/src/main/java/com/lakesidemutual/policymanagement/interfaces/configuration/MessagingConfiguration.java b/policy-management-backend/src/main/java/com/lakesidemutual/policymanagement/interfaces/configuration/MessagingConfiguration.java
+index 795b353..d4823b3 100644
+--- a/policy-management-backend/src/main/java/com/lakesidemutual/policymanagement/interfaces/configuration/MessagingConfiguration.java
++++ b/policy-management-backend/src/main/java/com/lakesidemutual/policymanagement/interfaces/configuration/MessagingConfiguration.java
+@@ -2,9 +2,10 @@ package com.lakesidemutual.policymanagement.interfaces.configuration;
+ 
+ import com.lakesidemutual.policymanagement.domain.insurancequoterequest.CustomerDecisionEvent;
+ import com.lakesidemutual.policymanagement.domain.insurancequoterequest.InsuranceQuoteRequestEvent;
+-import org.apache.activemq.ActiveMQConnectionFactory;
++import org.apache.activemq.ActiveMQSslConnectionFactory;
+ import org.apache.activemq.broker.BrokerPlugin;
+ import org.apache.activemq.broker.BrokerService;
++import org.apache.activemq.broker.SslContext;
+ import org.apache.activemq.security.SimpleAuthenticationPlugin;
+ import org.apache.activemq.usage.SystemUsage;
+ import org.springframework.beans.factory.annotation.Value;
+@@ -16,21 +17,48 @@ import org.springframework.jms.support.converter.MappingJackson2MessageConverter
+ import org.springframework.jms.support.converter.MessageConverter;
+ import org.springframework.jms.support.converter.MessageType;
+ 
++import javax.net.ssl.KeyManagerFactory;
++import javax.net.ssl.TrustManagerFactory;
++import java.io.FileInputStream;
++import java.io.InputStream;
++import java.security.KeyStore;
+ import java.util.HashMap;
+ import java.util.Map;
+ 
+ /**
+  * The MessagingConfiguration class configures the ActiveMQ message broker. This broker is used
+  * to send events to the Risk Management Server when a policy changes.
++ *
++ * Both broker connectors and every client connection use mutual TLS: the broker demands a
++ * client certificate (transport.needClientAuth=true on the connector addresses) and the
++ * clients present one from their own key store. The development key material is created by
++ * generate-certificates.sh in the repository root.
+  */
+ @Configuration
+ public class MessagingConfiguration {
++    private static final String STORE_TYPE = "PKCS12";
++
+     @Value("${policymanagement.stompBrokerBindAddress}")
+     private String stompBrokerBindAddress;
+ 
+     @Value("${policymanagement.tcpBrokerBindAddress}")
+     private String tcpBrokerBindAddress;
+ 
++    @Value("${policymanagement.brokerURL}")
++    private String brokerURL;
++
++    @Value("${policymanagement.ssl.keyStore}")
++    private String keyStore;
++
++    @Value("${policymanagement.ssl.keyStorePassword}")
++    private String keyStorePassword;
++
++    @Value("${policymanagement.ssl.trustStore}")
++    private String trustStore;
++
++    @Value("${policymanagement.ssl.trustStorePassword}")
++    private String trustStorePassword;
++
+     @Value("${spring.activemq.user}")
+     private String username;
+ 
+@@ -40,6 +68,9 @@ public class MessagingConfiguration {
+     @Bean
+     public BrokerService broker() throws Exception {
+         final BrokerService broker = new BrokerService();
++        // The SSL context has to be in place before the TLS connectors are added, because
++        // they take their key and trust managers from it.
++        broker.setSslContext(createSslContext());
+         broker.addConnector(stompBrokerBindAddress);
+         broker.addConnector(tcpBrokerBindAddress);
+         broker.setPersistent(true);
+@@ -57,6 +88,29 @@ public class MessagingConfiguration {
+         return broker;
+     }
+ 
++    /**
++     * Builds the key and trust managers the broker's TLS connectors use. The key store holds
++     * this service's own certificate, the trust store holds the certificate authority that
++     * signed the certificates of the services allowed to connect.
++     */
++    private SslContext createSslContext() throws Exception {
++        KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
++        keyManagerFactory.init(loadStore(keyStore, keyStorePassword), keyStorePassword.toCharArray());
++
++        TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
++        trustManagerFactory.init(loadStore(trustStore, trustStorePassword));
++
++        return new SslContext(keyManagerFactory.getKeyManagers(), trustManagerFactory.getTrustManagers(), null);
++    }
++
++    private static KeyStore loadStore(String path, String storePassword) throws Exception {
++        KeyStore store = KeyStore.getInstance(STORE_TYPE);
++        try (InputStream in = new FileInputStream(path)) {
++            store.load(in, storePassword.toCharArray());
++        }
++        return store;
++    }
++
+     /**
+      * The @Bean attribute turns the returned object (in this case a MessageConverter) into a Spring bean.
+      * A bean is an object that is instantiated, assembled, and otherwise managed by a Spring container.
+@@ -79,9 +133,21 @@ public class MessagingConfiguration {
+         return converter;
+     }
+ 
++    /**
++     * This service is a client of its own broker as well as its host, so it connects over the
++     * same mutually authenticated transport as every other client. The stores are handed over
++     * as paths rather than as loaded managers, so that they are only read when a connection is
++     * actually opened.
++     */
+     @Bean
+-    public ActiveMQConnectionFactory connectionFactory() {
+-        ActiveMQConnectionFactory connectionFactory = new ActiveMQConnectionFactory();
++    public ActiveMQSslConnectionFactory connectionFactory() throws Exception {
++        ActiveMQSslConnectionFactory connectionFactory = new ActiveMQSslConnectionFactory(brokerURL);
++        connectionFactory.setKeyStore(keyStore);
++        connectionFactory.setKeyStorePassword(keyStorePassword);
++        connectionFactory.setKeyStoreType(STORE_TYPE);
++        connectionFactory.setTrustStore(trustStore);
++        connectionFactory.setTrustStorePassword(trustStorePassword);
++        connectionFactory.setTrustStoreType(STORE_TYPE);
+         connectionFactory.setTrustAllPackages(true);
+         connectionFactory.setUserName(username);
+         connectionFactory.setPassword(password);
+@@ -89,7 +155,7 @@ public class MessagingConfiguration {
+     }
+ 
+     @Bean
+-    public DefaultJmsListenerContainerFactory jmsListenerContainerFactory() {
++    public DefaultJmsListenerContainerFactory jmsListenerContainerFactory() throws Exception {
+         DefaultJmsListenerContainerFactory factory = new DefaultJmsListenerContainerFactory();
+         factory.setConnectionFactory(connectionFactory());
+         factory.setConcurrency("1-1");
+@@ -98,7 +164,7 @@ public class MessagingConfiguration {
+     }
+ 
+     @Bean
+-    public JmsTemplate jmsTemplate() {
++    public JmsTemplate jmsTemplate() throws Exception {
+         JmsTemplate template = new JmsTemplate();
+         template.setMessageConverter(jacksonJmsMessageConverter());
+         template.setConnectionFactory(connectionFactory());
+diff --git a/policy-management-backend/src/main/resources/application.properties b/policy-management-backend/src/main/resources/application.properties
+index b6b52e4..2e8508d 100644
+--- a/policy-management-backend/src/main/resources/application.properties
++++ b/policy-management-backend/src/main/resources/application.properties
+@@ -31,11 +31,24 @@ management.endpoints.web.exposure.include=*
+ management.info.git.mode=full
+ 
+ # ActiveMQ settings
+-policymanagement.stompBrokerBindAddress=stomp://0.0.0.0:61613
+-policymanagement.tcpBrokerBindAddress=tcp://0.0.0.0:61616
++# Both broker connectors require mutual TLS: the schemes are the TLS variants
++# of the OpenWire and STOMP transports, and transport.needClientAuth makes the
++# broker demand a certificate from every client that connects.
++policymanagement.stompBrokerBindAddress=stomp+ssl://0.0.0.0:61613?transport.needClientAuth=true
++policymanagement.tcpBrokerBindAddress=ssl://0.0.0.0:61616?transport.needClientAuth=true
++# The address this service uses to reach its own broker as a client.
++policymanagement.brokerURL=ssl://localhost:61616
+ riskmanagement.queueName=newpolicies
+ spring.activemq.user=queueuser
+ spring.activemq.password=secret
+ 
++# Key and trust material for the mutual TLS connections. Run
++# ./generate-certificates.sh in the repository root to create it; it is
++# deliberately not part of the repository.
++policymanagement.ssl.keyStore=../certs/policy-management-backend.p12
++policymanagement.ssl.keyStorePassword=changeit
++policymanagement.ssl.trustStore=../certs/truststore.p12
++policymanagement.ssl.trustStorePassword=changeit
++
+ customercore.baseURL=http://localhost:8110
+ spring.boot.admin.client.url = http://localhost:9000
+\ No newline at end of file
+diff --git a/policy-management-backend/src/test/java/com/lakesidemutual/policymanagement/tests/infrastructure/RiskManagementMessageProducerTests.java b/policy-management-backend/src/test/java/com/lakesidemutual/policymanagement/tests/infrastructure/RiskManagementMessageProducerTests.java
+index 9119876..9d0b4a5 100644
+--- a/policy-management-backend/src/test/java/com/lakesidemutual/policymanagement/tests/infrastructure/RiskManagementMessageProducerTests.java
++++ b/policy-management-backend/src/test/java/com/lakesidemutual/policymanagement/tests/infrastructure/RiskManagementMessageProducerTests.java
+@@ -34,7 +34,16 @@ import static org.junit.jupiter.api.Assertions.fail;
+         "riskmanagement.queueName=newpolicies",
+ })
+ public class RiskManagementMessageProducerTests {
+-    private static String brokerBindAddress = "tcp://localhost:61616";
++    /*
++     * The broker this test talks to is a fixture, not the broker the system runs: it exists
++     * only so that the producer has a queue to emit to, and only for the lifetime of this
++     * test. It is therefore reached over the in-VM transport, which does not open a network
++     * socket at all and consequently needs no TLS and no key material. The system's own
++     * broker and all of its clients use mutually authenticated TLS; see
++     * MessagingConfiguration and generate-certificates.sh.
++     */
++    private static String brokerName = "risk-management-message-producer-tests";
++    private static String brokerURL = "vm://" + brokerName + "?create=false&waitForStart=10000";
+ 
+     @Value("${riskmanagement.queueName}")
+     private String queueName;
+@@ -44,8 +53,9 @@ public class RiskManagementMessageProducerTests {
+         @Bean
+         public BrokerService broker() throws Exception {
+             final BrokerService broker = new BrokerService();
+-            broker.addConnector(brokerBindAddress);
++            broker.setBrokerName(brokerName);
+             broker.setPersistent(false);
++            broker.setUseJmx(false);
+             return broker;
+         }
+ 
+@@ -57,7 +67,7 @@ public class RiskManagementMessageProducerTests {
+         @Bean
+         public JmsTemplate jmsTemplate() {
+             ActiveMQConnectionFactory activeMQConnectionFactory = new ActiveMQConnectionFactory();
+-            activeMQConnectionFactory.setBrokerURL(brokerBindAddress);
++            activeMQConnectionFactory.setBrokerURL(brokerURL);
+ 
+             MappingJackson2MessageConverter converter = new MappingJackson2MessageConverter();
+             converter.setTargetType(MessageType.TEXT);
+diff --git a/risk-management-server/README.md b/risk-management-server/README.md
+index 2ed517d..71baf9d 100644
+--- a/risk-management-server/README.md
++++ b/risk-management-server/README.md
+@@ -22,5 +22,7 @@ Now you are ready to launch the Risk Management server.
+ The Risk Management server consumes [Document Messages](https://www.enterpriseintegrationpatterns.com/patterns/messaging/DocumentMessage.html) from the [Policy Management backend](../policy-management-backend) through an [ActiveMQ](http://activemq.apache.org/) message queue. Therefore, you should make sure that the Policy Management backend is running while you are using the Risk Management service. Then, in the `risk-management-server` directory, run `npm start`
+ to start the Risk Management server. <!-- using MOM/EIP terminology -->
+ 
++The queue is reached over STOMP with mutual TLS, so the Risk Management server presents a client certificate when it subscribes. Run `./generate-certificates.sh` in the repository root once to create the development certificates; their paths are configured in `config.json`.
++
+ The Policy Management backend puts a message on the ActiveMQ queue every time an insurance policy is created, updated or deleted. These messages are persisted in the file `data/data.json`.
+ If this file does not exist yet, the Risk Management server will load the default data from the file `data/initial-data.json`.
+diff --git a/risk-management-server/config.json b/risk-management-server/config.json
+index 93a895e..cf5c424 100644
+--- a/risk-management-server/config.json
++++ b/risk-management-server/config.json
+@@ -4,10 +4,13 @@
+     "port": 61613,
+     "username": "queueuser",
+     "password": "secret",
+-    "queueName": "newpolicies"
++    "queueName": "newpolicies",
++    "cafile": "../certs/ca.crt",
++    "keyfile": "../certs/risk-management-server.key",
++    "certfile": "../certs/risk-management-server.crt"
+   },
+   "grpc": {
+     "host": "0.0.0.0",
+     "port": 50051
+   }
+-}
+\ No newline at end of file
++}
+diff --git a/risk-management-server/index.js b/risk-management-server/index.js
+index f984f2d..f4ba724 100644
+--- a/risk-management-server/index.js
++++ b/risk-management-server/index.js
+@@ -4,6 +4,7 @@ require('log-timestamp')(() => {
+   })
+   return `[${timestamp}] %s`
+ })
++const fs = require('fs')
+ const nconf = require('nconf')
+ const path = require('path')
+ const stompit = require('stompit')
+@@ -50,9 +51,21 @@ function handleMessage(channel, dataManager, error, message, subscription) {
+   })
+ }
+ 
++/*
++Paths in the configuration may be relative, in which case they are meant relative to this
++service's own directory rather than to whatever the current working directory happens to be.
++*/
++function readPem(filePath) {
++  return fs.readFileSync(path.resolve(__dirname, filePath))
++}
++
+ /*
+ The consumeEvents() function consumes PolicyEvent messages from the message queue when
+ they become available. Each event is then persisted with the data manager.
++
++The broker only offers the STOMP transport over TLS and demands a client certificate, so
++the connection is established with `ssl: true` and with this service's own key and
++certificate. The remaining TLS options are passed through to Node's tls.connect().
+ */
+ function consumeEvents(dataManager) {
+   const mq_config = nconf.get('activemq')
+@@ -65,6 +78,11 @@ function consumeEvents(dataManager) {
+   const connectOptions = {
+     host: mq_config.host,
+     port: mq_config.port,
++    ssl: true,
++    ca: [readPem(mq_config.cafile)],
++    key: readPem(mq_config.keyfile),
++    cert: readPem(mq_config.certfile),
++    servername: mq_config.host,
+     connectHeaders: {
+       host: '/',
+       login: mq_config.username,

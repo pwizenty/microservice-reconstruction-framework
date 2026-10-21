@@ -1,0 +1,331 @@
+diff --git a/.gitignore b/.gitignore
+index 557f204..638e848 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -2,6 +2,9 @@
+ .idea
+ __ENV.js
+ 
++# Key material produced by generate-certificates.sh. Never commit this.
++certificates/
++
+ # Ignore the H2 databases
+ *.mv.db
+ 
+diff --git a/customer-core/src/main/resources/application.properties b/customer-core/src/main/resources/application.properties
+index 7cf9721..3539b63 100644
+--- a/customer-core/src/main/resources/application.properties
++++ b/customer-core/src/main/resources/application.properties
+@@ -13,6 +13,31 @@ spring.jpa.hibernate.ddl-auto=create-drop
+ 
+ server.port = 8110
+ 
++# Mutual TLS. The Customer Core is only ever called by the other backends, so it
++# both encrypts the channel and requires every caller to present a certificate
++# issued by the Lakeside Mutual CA. The API key above still identifies which
++# backend is calling; the certificate proves that the caller is a Lakeside
++# Mutual service at all.
++#
++# The key material is created by ../generate-certificates.sh and is not in
++# version control. Override its location with LAKESIDEMUTUAL_TLS_DIR and its
++# password with LAKESIDEMUTUAL_TLS_PASSWORD.
++lakesidemutual.tls.dir=../certificates
++lakesidemutual.tls.password=lakesidemutual
++lakesidemutual.tls.bundle=lakesidemutual
++
++spring.ssl.bundle.jks.lakesidemutual.key.alias=customer-core
++spring.ssl.bundle.jks.lakesidemutual.keystore.location=file:${lakesidemutual.tls.dir}/customer-core.p12
++spring.ssl.bundle.jks.lakesidemutual.keystore.password=${lakesidemutual.tls.password}
++spring.ssl.bundle.jks.lakesidemutual.keystore.type=PKCS12
++spring.ssl.bundle.jks.lakesidemutual.truststore.location=file:${lakesidemutual.tls.dir}/truststore.p12
++spring.ssl.bundle.jks.lakesidemutual.truststore.password=${lakesidemutual.tls.password}
++spring.ssl.bundle.jks.lakesidemutual.truststore.type=PKCS12
++
++server.ssl.enabled=true
++server.ssl.bundle=lakesidemutual
++server.ssl.client-auth=need
++
+ management.endpoints.web.exposure.include=*
+ management.info.git.mode=full
+ 
+diff --git a/customer-management-backend/src/main/resources/application.properties b/customer-management-backend/src/main/resources/application.properties
+index c5b3129..a85f3b4 100644
+--- a/customer-management-backend/src/main/resources/application.properties
++++ b/customer-management-backend/src/main/resources/application.properties
+@@ -23,5 +23,24 @@ server.port = 8100
+ management.endpoints.web.exposure.include=*
+ management.info.git.mode=full
+ 
+-customercore.baseURL=http://localhost:8110
++# The Customer Core requires mutual TLS, so this backend talks to it over https
++# and presents its own certificate.
++customercore.baseURL=https://localhost:8110
++
++# Mutual TLS identity of this backend. The key material is created by
++# ../generate-certificates.sh and is not in version control. Override its
++# location with LAKESIDEMUTUAL_TLS_DIR and its password with
++# LAKESIDEMUTUAL_TLS_PASSWORD.
++lakesidemutual.tls.dir=../certificates
++lakesidemutual.tls.password=lakesidemutual
++lakesidemutual.tls.bundle=lakesidemutual
++
++spring.ssl.bundle.jks.lakesidemutual.key.alias=customer-management-backend
++spring.ssl.bundle.jks.lakesidemutual.keystore.location=file:${lakesidemutual.tls.dir}/customer-management-backend.p12
++spring.ssl.bundle.jks.lakesidemutual.keystore.password=${lakesidemutual.tls.password}
++spring.ssl.bundle.jks.lakesidemutual.keystore.type=PKCS12
++spring.ssl.bundle.jks.lakesidemutual.truststore.location=file:${lakesidemutual.tls.dir}/truststore.p12
++spring.ssl.bundle.jks.lakesidemutual.truststore.password=${lakesidemutual.tls.password}
++spring.ssl.bundle.jks.lakesidemutual.truststore.type=PKCS12
++
+ spring.boot.admin.client.url = http://localhost:9000
+\ No newline at end of file
+diff --git a/customer-self-service-backend/src/main/resources/application.properties b/customer-self-service-backend/src/main/resources/application.properties
+index c6f10e6..c8e00d1 100644
+--- a/customer-self-service-backend/src/main/resources/application.properties
++++ b/customer-self-service-backend/src/main/resources/application.properties
+@@ -17,7 +17,9 @@ apikey.header=Authorization
+ # container or managed in a data store. We provide it here for convenience:
+ apikey.value=b318ad736c6c844b
+ 
+-policymanagement.tcpBrokerBindAddress=tcp://localhost:61616
++# The Policy Management broker only accepts mutually authenticated TLS
++# connections, hence the ssl:// scheme.
++policymanagement.tcpBrokerBindAddress=ssl://localhost:61616
+ 
+ spring.application.name = customer-self-service-backend
+ 
+@@ -42,5 +44,30 @@ management.info.git.mode=full
+ # added to make circuit breaker support work: 
+ spring.main.allow-bean-definition-overriding=true
+ 
+-customercore.baseURL=http://localhost:8110
++# The Customer Core requires mutual TLS, so this backend talks to it over https
++# and presents its own certificate.
++customercore.baseURL=https://localhost:8110
++
++# Mutual TLS identity of this backend. It is used both for the Customer Core
++# connection and for the message broker connection above. The key material is
++# created by ../generate-certificates.sh and is not in version control. Override
++# its location with LAKESIDEMUTUAL_TLS_DIR and its password with
++# LAKESIDEMUTUAL_TLS_PASSWORD.
++lakesidemutual.tls.dir=../certificates
++lakesidemutual.tls.password=lakesidemutual
++lakesidemutual.tls.bundle=lakesidemutual
++
++spring.ssl.bundle.jks.lakesidemutual.key.alias=customer-self-service-backend
++spring.ssl.bundle.jks.lakesidemutual.keystore.location=file:${lakesidemutual.tls.dir}/customer-self-service-backend.p12
++spring.ssl.bundle.jks.lakesidemutual.keystore.password=${lakesidemutual.tls.password}
++spring.ssl.bundle.jks.lakesidemutual.keystore.type=PKCS12
++spring.ssl.bundle.jks.lakesidemutual.truststore.location=file:${lakesidemutual.tls.dir}/truststore.p12
++spring.ssl.bundle.jks.lakesidemutual.truststore.password=${lakesidemutual.tls.password}
++spring.ssl.bundle.jks.lakesidemutual.truststore.type=PKCS12
++
++# ActiveMQ is not aware of Spring's SSL bundles, so the same two stores are also
++# addressed directly for the message broker connection.
++lakesidemutual.tls.keystore=${lakesidemutual.tls.dir}/customer-self-service-backend.p12
++lakesidemutual.tls.truststore=${lakesidemutual.tls.dir}/truststore.p12
++
+ spring.boot.admin.client.url = http://localhost:9000
+\ No newline at end of file
+diff --git a/generate-certificates.sh b/generate-certificates.sh
+new file mode 100755
+index 0000000..7df3d8d
+--- /dev/null
++++ b/generate-certificates.sh
+@@ -0,0 +1,113 @@
++#!/bin/sh
++#
++# Generates the key material that the Lakeside Mutual services use to
++# authenticate each other with mutual TLS.
++#
++# Everything this script writes is development key material: it is NOT in
++# version control (see .gitignore) and it must never be used outside a
++# development machine. Run the script once before starting the applications:
++#
++#   ./generate-certificates.sh
++#
++# It creates a private certificate authority and, signed by it, one key pair per
++# service. Each certificate carries both serverAuth and clientAuth extended key
++# usages, because in a mesh of mutually authenticated services every service
++# acts in both roles. The subject alternative names cover the two ways a service
++# is addressed in this project: by its Docker Compose service name and as
++# localhost when the applications are started directly on the host.
++#
++# Output (in ./certificates, override with LAKESIDEMUTUAL_TLS_DIR):
++#
++#   ca.crt, ca.key         the private certificate authority
++#   truststore.p12         CA certificate, used as truststore by the JVM services
++#   <service>.p12          key + certificate chain, used as keystore by the JVM services
++#   <service>.key/.crt     the same identity in PEM form, used by the Node.js services
++#
++# Prerequisites: openssl and keytool (keytool ships with the JDK that the
++# backends already require). On Windows, run this script from Git Bash or WSL.
++#
++set -eu
++
++SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
++
++OUT_DIR="${LAKESIDEMUTUAL_TLS_DIR:-$SCRIPT_DIR/certificates}"
++
++# The password protects the generated PKCS#12 files. Like the API keys in the
++# application.properties files, it is hardcoded here for convenience; the
++# services read it from LAKESIDEMUTUAL_TLS_PASSWORD, so a real deployment can
++# inject a different one.
++PASSWORD="${LAKESIDEMUTUAL_TLS_PASSWORD:-lakesidemutual}"
++
++# Validity of the service certificates in days. 825 days is the maximum that
++# current TLS clients accept for a leaf certificate.
++DAYS="${LAKESIDEMUTUAL_TLS_DAYS:-825}"
++
++# Every service that terminates or initiates a mutually authenticated
++# connection needs its own identity.
++SERVICES="customer-core customer-management-backend customer-self-service-backend policy-management-backend risk-management-server risk-management-client spring-boot-admin"
++
++echo "Writing key material to $OUT_DIR"
++rm -rf "$OUT_DIR"
++mkdir -p "$OUT_DIR"
++
++echo "Creating the Lakeside Mutual certificate authority"
++openssl req -x509 -newkey rsa:4096 -sha256 -days 3650 -nodes \
++  -keyout "$OUT_DIR/ca.key" \
++  -out "$OUT_DIR/ca.crt" \
++  -subj "/O=Lakeside Mutual/CN=Lakeside Mutual Internal CA" \
++  -addext "basicConstraints=critical,CA:TRUE" \
++  -addext "keyUsage=critical,keyCertSign,cRLSign" \
++  2>/dev/null
++
++for SERVICE in $SERVICES; do
++  echo "Issuing a certificate for $SERVICE"
++
++  EXT_FILE="$OUT_DIR/$SERVICE.ext"
++  cat > "$EXT_FILE" <<EXT
++basicConstraints=critical,CA:FALSE
++keyUsage=critical,digitalSignature,keyEncipherment
++extendedKeyUsage=serverAuth,clientAuth
++subjectAltName=DNS:$SERVICE,DNS:localhost,IP:127.0.0.1
++EXT
++
++  openssl req -newkey rsa:2048 -nodes \
++    -keyout "$OUT_DIR/$SERVICE.key" \
++    -out "$OUT_DIR/$SERVICE.csr" \
++    -subj "/O=Lakeside Mutual/CN=$SERVICE" \
++    2>/dev/null
++
++  openssl x509 -req -sha256 -days "$DAYS" \
++    -in "$OUT_DIR/$SERVICE.csr" \
++    -CA "$OUT_DIR/ca.crt" \
++    -CAkey "$OUT_DIR/ca.key" \
++    -CAcreateserial \
++    -extfile "$EXT_FILE" \
++    -out "$OUT_DIR/$SERVICE.crt" \
++    2>/dev/null
++
++  # The PKCS#12 file holds the private key together with the full chain, so the
++  # JVM services can present a complete chain to their peers.
++  openssl pkcs12 -export \
++    -name "$SERVICE" \
++    -inkey "$OUT_DIR/$SERVICE.key" \
++    -in "$OUT_DIR/$SERVICE.crt" \
++    -certfile "$OUT_DIR/ca.crt" \
++    -out "$OUT_DIR/$SERVICE.p12" \
++    -passout "pass:$PASSWORD"
++
++  rm -f "$OUT_DIR/$SERVICE.csr" "$EXT_FILE"
++done
++
++echo "Creating the shared truststore"
++keytool -importcert -noprompt -trustcacerts \
++  -alias lakesidemutual-ca \
++  -file "$OUT_DIR/ca.crt" \
++  -keystore "$OUT_DIR/truststore.p12" \
++  -storetype PKCS12 \
++  -storepass "$PASSWORD" \
++  > /dev/null
++
++rm -f "$OUT_DIR/ca.srl"
++chmod 600 "$OUT_DIR"/*.key "$OUT_DIR"/*.p12
++
++echo "Done. The services pick the key material up from $OUT_DIR."
+diff --git a/policy-management-backend/src/main/resources/application.properties b/policy-management-backend/src/main/resources/application.properties
+index b6b52e4..66aa699 100644
+--- a/policy-management-backend/src/main/resources/application.properties
++++ b/policy-management-backend/src/main/resources/application.properties
+@@ -30,12 +30,47 @@ server.port = 8090
+ management.endpoints.web.exposure.include=*
+ management.info.git.mode=full
+ 
+-# ActiveMQ settings
+-policymanagement.stompBrokerBindAddress=stomp://0.0.0.0:61613
+-policymanagement.tcpBrokerBindAddress=tcp://0.0.0.0:61616
++# ActiveMQ settings. Both connectors terminate TLS and require the connecting
++# service to present a certificate issued by the Lakeside Mutual CA
++# (needClientAuth). The STOMP connector is used by the Risk Management Server,
++# the OpenWire connector by the Customer Self-Service backend and by this
++# application itself.
++policymanagement.stompBrokerBindAddress=stomp+ssl://0.0.0.0:61613?transport.needClientAuth=true
++policymanagement.tcpBrokerBindAddress=ssl://0.0.0.0:61616?transport.needClientAuth=true
++
++# The URL this application itself uses to reach the broker it hosts. It is a
++# separate property because the connectors above bind to every interface, while
++# a client has to address a concrete host whose name the certificate covers.
++policymanagement.brokerURL=ssl://localhost:61616
++
+ riskmanagement.queueName=newpolicies
+ spring.activemq.user=queueuser
+ spring.activemq.password=secret
+ 
+-customercore.baseURL=http://localhost:8110
++# The Customer Core requires mutual TLS, so this backend talks to it over https
++# and presents its own certificate.
++customercore.baseURL=https://localhost:8110
++
++# Mutual TLS identity of this backend. It is used for the Customer Core
++# connection, for the message broker it hosts and for its own broker
++# connection. The key material is created by ../generate-certificates.sh and is
++# not in version control. Override its location with LAKESIDEMUTUAL_TLS_DIR and
++# its password with LAKESIDEMUTUAL_TLS_PASSWORD.
++lakesidemutual.tls.dir=../certificates
++lakesidemutual.tls.password=lakesidemutual
++lakesidemutual.tls.bundle=lakesidemutual
++
++spring.ssl.bundle.jks.lakesidemutual.key.alias=policy-management-backend
++spring.ssl.bundle.jks.lakesidemutual.keystore.location=file:${lakesidemutual.tls.dir}/policy-management-backend.p12
++spring.ssl.bundle.jks.lakesidemutual.keystore.password=${lakesidemutual.tls.password}
++spring.ssl.bundle.jks.lakesidemutual.keystore.type=PKCS12
++spring.ssl.bundle.jks.lakesidemutual.truststore.location=file:${lakesidemutual.tls.dir}/truststore.p12
++spring.ssl.bundle.jks.lakesidemutual.truststore.password=${lakesidemutual.tls.password}
++spring.ssl.bundle.jks.lakesidemutual.truststore.type=PKCS12
++
++# ActiveMQ is not aware of Spring's SSL bundles, so the same two stores are also
++# addressed directly for the message broker connection.
++lakesidemutual.tls.keystore=${lakesidemutual.tls.dir}/policy-management-backend.p12
++lakesidemutual.tls.truststore=${lakesidemutual.tls.dir}/truststore.p12
++
+ spring.boot.admin.client.url = http://localhost:9000
+\ No newline at end of file
+diff --git a/spring-boot-admin/src/main/resources/application.properties b/spring-boot-admin/src/main/resources/application.properties
+index f39307e..1207975 100644
+--- a/spring-boot-admin/src/main/resources/application.properties
++++ b/spring-boot-admin/src/main/resources/application.properties
+@@ -1,3 +1,21 @@
+ spring.application.name = spring-boot-admin
+ 
+ server.port = 9000
++
++# Spring Boot Admin polls the actuator endpoints of the registered instances.
++# The Customer Core requires mutual TLS, so the admin server needs its own
++# identity to be allowed in. The key material is created by
++# ../generate-certificates.sh and is not in version control. Override its
++# location with LAKESIDEMUTUAL_TLS_DIR and its password with
++# LAKESIDEMUTUAL_TLS_PASSWORD.
++lakesidemutual.tls.dir=../certificates
++lakesidemutual.tls.password=lakesidemutual
++lakesidemutual.tls.bundle=lakesidemutual
++
++spring.ssl.bundle.jks.lakesidemutual.key.alias=spring-boot-admin
++spring.ssl.bundle.jks.lakesidemutual.keystore.location=file:${lakesidemutual.tls.dir}/spring-boot-admin.p12
++spring.ssl.bundle.jks.lakesidemutual.keystore.password=${lakesidemutual.tls.password}
++spring.ssl.bundle.jks.lakesidemutual.keystore.type=PKCS12
++spring.ssl.bundle.jks.lakesidemutual.truststore.location=file:${lakesidemutual.tls.dir}/truststore.p12
++spring.ssl.bundle.jks.lakesidemutual.truststore.password=${lakesidemutual.tls.password}
++spring.ssl.bundle.jks.lakesidemutual.truststore.type=PKCS12

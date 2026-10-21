@@ -1,4 +1,5 @@
 proposal      2026-10-13 rc1-customercore
+cause         endpoint:CustomerCore
 smell         Non-Secured Service-to-Service Communications (Ponce et al. 2022, 3.7)
 refactoring   Use Mutual TLS
 skill         resolve-non-secured-communication (copied verbatim as skill.md)
