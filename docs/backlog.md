@@ -28,6 +28,7 @@ So the list below reads as the remainder rather than as the whole picture.
 | Server-side communication facts | **A1** below: ports, protocol, TLS, client auth, end to end into a LEMMA aspect |
 | Node-side communication facts | **B3** below: a gRPC endpoint and a broker leg, their transport read from the sources by name, declared as LEMMA aspects and judged. Two channels of Lakeside Mutual that the detection had never seen |
 | Service model diagrams | LEMMA, `de.fhdo.lemma.servicedsl.diagram`, verified in Eclipse |
+| Deployment coverage of the detection | `detect-smells.sh --deployment` compares the operation model against the service models and reports every node deploying no reconstructed microservice as a *potential unmodelled client*. On Lakeside Mutual: the monitoring server and the NGINX demonstration - the two real clients of the Customer Core's connector that the models do not carry |
 
 ## A. Security smell: the rest of the facts
 

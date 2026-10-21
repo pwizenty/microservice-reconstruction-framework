@@ -127,6 +127,18 @@ channels it had not looked at. A fact is only evidence once both steps carry it.
 - **Several pieces of evidence per fact.** Backlog A7, and the one that needs an
   ADR: `Data.values` is flat, so a fact carries one piece of evidence.
 
+### Where its view ends
+
+Counting services with no communication fact catches a service that was
+reconstructed and left without one. It does not catch a client with no service
+model at all, and Lakeside Mutual has two: the monitoring server, skipped as
+infrastructure, and an NGINX load-balancing demonstration, which MRF does not
+read. Both are real clients of the Customer Core's connector. The detection
+therefore also compares the operation model against the service models and
+reports every deployment node that deploys no reconstructed microservice as a
+*potential unmodelled client* - not as a finding, because nothing there says
+such a node communicates at all.
+
 **Measured, and it bounds what any detection can be tested against:** neither
 sample system configures TLS anywhere. Eleven services across Lakeside Mutual
 and park-and-charge, every one a plaintext main connector, no management port.
