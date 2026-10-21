@@ -26,6 +26,7 @@ So the list below reads as the remainder rather than as the whole picture.
 | Data model diagrams | LEMMA, `de.fhdo.lemma.data.datadsl.diagram`, verified in Eclipse |
 | Operation model diagrams | LEMMA, `de.fhdo.lemma.operationdsl.diagram`, verified in Eclipse |
 | Server-side communication facts | **A1** below: ports, protocol, TLS, client auth, end to end into a LEMMA aspect |
+| Node-side communication facts | **B3** below: a gRPC endpoint and a broker leg, their transport read from the sources by name, declared as LEMMA aspects and judged. Two channels of Lakeside Mutual that the detection had never seen |
 | Service model diagrams | LEMMA, `de.fhdo.lemma.servicedsl.diagram`, verified in Eclipse |
 
 ## A. Security smell: the rest of the facts
