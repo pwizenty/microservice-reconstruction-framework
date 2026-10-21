@@ -229,6 +229,10 @@ build time and no model spend.
    | rc3 | 11 → 1 | gRPC listener |
    | ablation | 11 → 0 | none |
 
+   **Predicted before the run; §11 holds what was measured.** rc2 came out at
+   11 → 4 rather than 11 → 5: the broker patch secured the Node consumer's leg
+   as well, which the prediction had not expected of it.
+
 4. Re-probe rc3 and the ablation with the readiness loop, to settle the
    `ECONNREFUSED` of §5.
 
@@ -290,3 +294,133 @@ Regenerating the models changes committed golden expectations in both
 repositories and every count the paper and the package quote. Table I, the
 package report and the conclusions have to be updated in the same pass, or the
 submission and the paper will disagree with each other.
+
+## 11. Results, measured 2026-10-21
+
+Steps 1 to 4 are implemented and committed; this records what they changed.
+
+### The baseline
+
+| | Before | After |
+|---|---|---|
+| Findings | 9 | **11** |
+| Root causes | 2 | **4** |
+| Channels undecided | 0 | 0 |
+| Services with no communication fact | not reported | **0** (one before: RiskManagement) |
+
+The two new findings are the gRPC endpoint `0.0.0.0:50051`, bound with
+`createInsecure`, and the STOMP leg the Risk Management server holds to the
+broker. The new causes are `endpoint:RiskManagement` (1 finding) and
+`broker:activemq:stomp` (1), beside `endpoint:CustomerCore` (3) and
+`broker:activemq:tcp` (6).
+
+### The transport of the Node channels, read from the three real trees
+
+| Tree | gRPC endpoint | Broker leg |
+|---|---|---|
+| `622632f` unpatched | plaintext | plaintext |
+| rc3 (`622632f` + rc1 + rc2) | **plaintext** | tls |
+| ablation | tls, `clientAuth = need` | tls |
+
+So the residue of the guided chain is one channel, and it is the one the models
+did not carry. The ablation secured both ends of it, including
+`risk-management-client`, a component the deployment does not contain.
+
+### What the re-verification measures
+
+Each patch unchanged, the same four gates, against the 11-finding baseline.
+
+| Proposal | Findings | Addressed cause | Resolved | Verdict |
+|---|---|---|---|---|
+| rc1 | 11 → 8 | `endpoint:CustomerCore`, none left | 3 | see below |
+| rc2 | 11 → 4 | `broker:activemq:tcp`, none left | **7** | GATES PASSED 4/4 |
+| rc3 | **11 → 1** | `broker:activemq:tcp`, none left | 10 | GATES PASSED 4/4 |
+| ablation | **11 → 0** | names none | 11 | GATES PASSED 4/4 |
+
+The residue of the guided chain is the gRPC listener and nothing else, and the
+ablation resolves it. Both halves of the prediction hold.
+
+Two defects of the verification script, found by running it:
+
+- The control tree never generates key material, so a base whose services
+  already need certificates does not behave like its own baseline. rc3's control
+  is `d00f1da`, which carries rc1 - and without certificates the Customer Core
+  never registers with the admin server, so the control logged none of the TLS
+  errors rc1 causes. rc3 was therefore charged with a failure rc1 introduced,
+  and passed only because the notes declare it.
+- The certificate-script finder looks one directory deep. The ablation ships
+  `scripts/generate-certificates.sh`, so the `inplace` gate skipped rather than
+  measuring.
+
+Both are fixed, and rc3 and the ablation re-run afterwards.
+
+rc2 is the surprise, and it runs the other way from the ablation's. It resolved
+seven findings where the old count could show six: patching the broker's
+connector also moved the Node consumer's STOMP leg to TLS, and the detection
+could not see that leg at all. So the blind spot did not only hide a channel the
+guided proposals left open - it also hid work they had done.
+
+### What the start gate found
+
+rc1 passed all four gates in the earlier session. With the settle-and-scan it
+does not: `spring-boot-admin` fails its TLS handshake against the patched
+Customer Core — `certificate_unknown`, and PKIX `unable to find valid
+certification path`, 23 log lines, none of them in the unpatched control, which
+logs only the pre-existing `ECONNREFUSED` of the Node consumer against
+`policy-management-backend:61613`.
+
+Mutual TLS on a service's actuator endpoints necessarily costs that scrape, so
+failing every patch over it would have made the gate useless. The gate therefore
+compares the kinds of error against the base and requires the loss to be
+**declared** in `REFACTORING-NOTES.md`. rc1 and the ablation describe the
+consequence in detail. rc3's own diff adds no mention, but the tree it produces
+keeps rc1's, and the tree is what ships and what the gate reads.
+
+Two defects of my own, found by running it rather than by reading it: the first
+version compared "did the base log anything at all" and therefore skipped
+instead of attributing, and the second word-split `unable to find valid
+certification path` into six kinds.
+
+### Final state, 2026-10-21
+
+All four proposals reach `GATES PASSED` against the eleven-finding baseline,
+patches unchanged. The residue of the guided chain is one channel, the gRPC
+endpoint, and the ablation resolves it.
+
+The patched models confirm it independently, read from the generated
+`RiskManagement.services` of each run:
+
+| Run | `GrpcServer` | `MessageQueue` |
+|---|---|---|
+| rc1 | plaintext | plaintext |
+| rc2 | plaintext | tls |
+| rc3 | **plaintext** | tls |
+| ablation | **tls, `clientAuth = need`** | tls |
+
+Every run yields 26 communication facts (24 before the two Node aspects
+existed), so findings fall because values change, not because channels stop
+being reconstructed.
+
+Test suites, both repositories:
+
+```
+ruff check                 All checks passed
+ruff format --check        171 files already formatted
+mypy                       58 source files, no issues
+pytest -q                  168 passed
+SmellDetectionTest         152 check(s), 0 failed
+ReconstructionRegressionT. all 4 systems match
+check-bundle-requires.py   OK
+```
+
+Paper: `latexmk` exit 0, **6 pages**, no overfull boxes, no unresolved
+references. Table~I, the baseline counts, the grouping example, the start gate's
+description and the conclusions carry the new numbers; §II, §III and §V were
+tightened to pay for them, losing no result.
+
+### Still open
+
+- The replication package (`../saner2027-submission/`) still holds the
+  nine-finding models and report. Regenerating it is the remaining step.
+- A runtime probe of `:50051` would make the residue evidence threefold
+  (detection, source, runtime). Not needed for the paper's claims as written.
