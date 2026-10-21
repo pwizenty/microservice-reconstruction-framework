@@ -9,7 +9,7 @@ something other than the order it was written in. Items marked **decision**
 need an answer before they can be started; items marked **blocked** cannot be
 tested against any system available here.
 
-Last reviewed 2026-10-12.
+Last reviewed 2026-10-21.
 
 ## Done, for context
 
@@ -50,7 +50,7 @@ document's order.
 | A6 | One link per profile, with the active one marked | profile-specific files plus `SPRING_PROFILES_ACTIVE` from the deployment | medium |
 | A7 | Several evidence records per fact | a nested structure, which `Data.values` cannot hold — **this is where a fourth collection and an ADR become necessary** | large |
 | A8a | **Asynchronous links** — JMS/ActiveMQ producers and consumers, the queue and the broker's transport | planned in `async-communication-plan.md`; six messaging interactions in Lakeside Mutual, none reconstructed today | medium |
-| A8b | gRPC client calls, Kafka `security.protocol` | further detectors — **blocked**: absent from every sample system available here | medium |
+| A8b | Kafka `security.protocol`, and a gRPC *client* call | further detectors. **Partly unblocked**: gRPC is not absent after all - Lakeside Mutual serves it from `risk-management-server`, and the server half is reconstructed since B3. What is still missing is the client half, and its only caller here is `risk-management-client`, which B2 reconstructs nothing for. Kafka remains blocked | medium |
 
 **A1 is done.** It needed no new mechanism, and it completes the client/server
 pair of which only the client half existed. **A2 is now the cheapest step**: the
@@ -79,7 +79,7 @@ Steps 1 and 2 are done. `node-plugin-plan.md` §8 holds the questions.
 |---|---|---|
 | B1 | The frontends | **decision**: reconstruct nothing, or their outgoing calls as `EXTERNAL` facts? Nothing is the honest default; the calls are architecture information no other plugin will see. Points at "nothing", given that frontend UI elements are already kept out of operation models |
 | B2 | `risk-management-client` | **decision**: a command line tool, not a service. Nothing, or a `utility` microservice? Recommendation: reconstruct nothing and record why |
-| B3 | A JavaScript parser for `createInsecure()` and the subscription | only if B1/A8 need it; behind an ADR |
+| ~~B3~~ | ~~A JavaScript parser for `createInsecure()` and the subscription~~ | **done, 2026-10-21, without a parser.** `mrf/plugins/service/node/javascript.py` reads the transport of a Node service's channels by name - `ServerCredentials.createInsecure`/`createSsl`, the `ssl` option of a connection, a protected broker scheme - as A2 reads `TrustAllStrategy` on the Java side. Scanning source text for an API name is not parsing, so ADR-0003 is untouched and no ADR was needed. `GrpcServer` and `MessageQueue` now carry `transportSecurity`, `clientAuth` where a client certificate is required, and the file as `valueSource` |
 
 ## C. Operation model diagrams
 

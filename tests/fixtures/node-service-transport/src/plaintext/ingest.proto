@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package ingest;
+
+service Ingest {
+  rpc Accept (Batch) returns (Receipt);
+}
+
+message Batch {
+  string payload = 1;
+}
+
+message Receipt {
+  string id = 1;
+}

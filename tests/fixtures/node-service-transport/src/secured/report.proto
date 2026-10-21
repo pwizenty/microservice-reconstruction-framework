@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package report;
+
+service Report {
+  rpc Render (Request) returns (Document);
+}
+
+message Request {
+  string period = 1;
+}
+
+message Document {
+  string body = 1;
+}

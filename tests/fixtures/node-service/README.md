@@ -22,7 +22,7 @@ so, and what its configuration states when it is.
 | `config.json` section `activemq` | the broker, its address, and the queue `newreports` |
 | `stompit` as the dependency | the scheme `stomp`. The configuration does not state it - the library decides the wire protocol |
 | `username` and `password` in the configuration | reported as `credentialsConfigured: true` and **never** as values. That a broker is authenticated is architecture information; the secret is not, and a test asserts neither string reaches the model |
-| no TLS section anywhere | `transportSecurity: UNRESOLVED`, not `plaintext`. Whether a channel is encrypted is decided in the code that opens it, which this step does not read, and absence is not evidence |
+| no TLS section and **no source** anywhere | `transportSecurity: unresolved`, not `plaintext`. Whether a channel is encrypted is decided in the code that opens it; absence of a TLS setting is not evidence, and this fixture has no `index.js` for the transport to be read from. The sibling fixture `node-service-transport` covers the two cases where it can be |
 
 ### `dashboard` — not a service
 

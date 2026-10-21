@@ -1,8 +1,11 @@
 """Node plugin reconstructing what a Node service serves and is configured for.
 
-Reads the two structured files a Node service has: ``package.json``, which names
-it and its dependencies, and its own configuration file, which holds the
-addresses. Neither is JavaScript, so nothing here parses any.
+Reads the two structured files a Node service has - ``package.json``, which
+names it and its dependencies, and its own configuration file, which holds the
+addresses - and the transport of its channels from its sources, by name rather
+than by parsing them (``javascript.py``). The addresses are configuration; which
+of them is encrypted is decided in the code that opens the channel, so a
+configuration alone leaves every transport unresolved.
 
 What the facts are attached to is the microservice another plugin reconstructed
 for the same service - the Protobuf plugin, for a service with a gRPC contract.
@@ -18,7 +21,13 @@ from pathlib import PurePath
 from mrf.modules.service import Microservice
 from mrf.plugins.common.common_plugin import Data
 from mrf.plugins.reconstruction_plugin import Plugin
+from mrf.plugins.service.node.javascript import (
+    TransportEvidence,
+    grpc_server_transport,
+    messaging_transport,
+)
 from mrf.utilities.command_line import SourceFile
+from mrf.utilities.communication import CLIENT_AUTH, VALUE_SOURCE, Transport
 from mrf.utilities.node import (
     BROKER,
     CONFIG_JSON,
@@ -28,6 +37,7 @@ from mrf.utilities.node import (
     GRPC_SECTIONS,
     GRPC_SERVER,
     HOST,
+    JS_SUFFIX,
     MESSAGE_QUEUE,
     MESSAGING_SCHEMES,
     MESSAGING_SECTIONS,
@@ -38,6 +48,7 @@ from mrf.utilities.node import (
     QUEUE,
     QUEUE_KEYS,
     SCHEME,
+    SSL_CONFIG_KEY,
     TRANSPORT_SECURITY,
     UNRESOLVED,
     USER_KEYS,
@@ -53,14 +64,18 @@ class NodePlugin(Plugin):
         # What was read, by the directory of the service it was read from.
         self.manifests: dict[str, dict] = {}
         self.configurations: dict[str, dict] = {}
+        # Sources, by their own path: which service they belong to is decided
+        # with the manifests, in assign_to.
+        self.sources: dict[str, str] = {}
 
     def file_types(self) -> list[str]:
         """Return the file suffixes this plugin analyses.
 
         Returns:
-            [str]: The suffix of a manifest and of a configuration
+            [str]: The suffix of a manifest and of a configuration, and that of
+            the sources the transport of a channel is read from
         """
-        return [".json"]
+        return [".json", JS_SUFFIX]
 
     def execute_reconstruction(self, source_files: list[SourceFile]) -> dict[str, dict]:
         """Read the manifest and the configuration of every Node service.
@@ -82,6 +97,9 @@ class NodePlugin(Plugin):
         for source_file in self.__json_files(source_files, CONFIG_JSON):
             directory = str(PurePath(source_file.path).parent)
             self.configurations[directory] = self.__read(source_file)
+
+        for source_file in self.__sources(source_files):
+            self.sources[source_file.path] = source_file.file or ""
 
         return self.manifests
 
@@ -117,16 +135,15 @@ class NodePlugin(Plugin):
     def __facts(
         self, configuration: dict, dependencies: set[str], directory: str
     ) -> list[Data]:
-        """Build the facts a service's configuration states."""
+        """Build the facts a service's configuration and sources state."""
         facts: list[Data] = []
+        sources = self.__sources_of(directory)
 
         grpc = self.__section(configuration, GRPC_SECTIONS)
         if grpc is not None and dependencies & set(GRPC_DEPENDENCIES):
             data = Data(GRPC_SERVER)
             data.values = self.__address(grpc)
-            # Whether the channel is created insecure is in the code that opens
-            # it, which this step does not read.
-            data.values[TRANSPORT_SECURITY] = UNRESOLVED
+            self.__add_transport(data.values, grpc_server_transport(sources))
             facts.append(data)
         elif grpc is not None:
             logger.debug(
@@ -149,11 +166,70 @@ class NodePlugin(Plugin):
             # A credential is never reported, only that one is configured: the
             # architecture information is that the broker is authenticated, and
             # the value is a secret.
-            values[TRANSPORT_SECURITY] = UNRESOLVED
+            self.__add_transport(
+                values, self.__messaging_transport(sources, section, directory)
+            )
             data.values = values
             facts.append(data)
 
         return facts
+
+    def __add_transport(
+        self, values: dict[str, str], evidence: TransportEvidence
+    ) -> None:
+        """Add what was read about a channel's transport to a fact.
+
+        The transport is always stated, unresolved included, so that a channel
+        whose sources were not read and a channel that is protected do not look
+        alike. What is only stated where it was read is the client certificate
+        and the file the evidence comes from.
+
+        Args:
+            values (dict[str, str]): Values of the fact, extended in place
+            evidence (TransportEvidence): What the sources state
+        """
+        values[TRANSPORT_SECURITY] = evidence.transport
+        if evidence.client_auth is not None:
+            values[CLIENT_AUTH] = evidence.client_auth
+        if evidence.value_source is not None:
+            values[VALUE_SOURCE] = evidence.value_source
+
+    def __messaging_transport(
+        self, sources: dict[str, str], section: dict, directory: str
+    ) -> TransportEvidence:
+        """Read the transport of a broker connection, sources before settings.
+
+        The sources decide, because they are what opens the channel. A service
+        that reads the decision from its own configuration instead - an ``ssl``
+        key the code passes on - is the one case where the settings state it,
+        and then the configuration is the evidence.
+
+        Args:
+            sources (dict[str, str]): Contents of the service's sources, by path
+            section (dict): The section that addresses the broker
+            directory (str): Directory of the service, for the evidence
+
+        Returns:
+            TransportEvidence: What the service states
+        """
+        evidence = messaging_transport(sources)
+        if evidence.transport != Transport.UNRESOLVED.value:
+            return evidence
+        if section.get(SSL_CONFIG_KEY) is True:
+            return TransportEvidence(
+                Transport.TLS.value,
+                None,
+                str(PurePath(directory) / CONFIG_JSON),
+            )
+        return evidence
+
+    def __sources_of(self, directory: str) -> dict[str, str]:
+        """Return the contents of the sources of one service, by path."""
+        return {
+            path: content
+            for path, content in self.sources.items()
+            if self.__belongs_to(path, directory)
+        }
 
     def __address(self, section: dict) -> dict[str, str]:
         """Read the host and the port a section addresses."""
@@ -215,6 +291,26 @@ class NodePlugin(Plugin):
                 for f in source_files
                 if f.file is not None
                 and PurePath(f.path).name == name
+                and NODE_MODULES not in PurePath(f.path).parts
+            ),
+            key=lambda f: f.path,
+        )
+
+    def __sources(self, source_files: list[SourceFile]) -> list[SourceFile]:
+        """Return the sources of the system, outside the installed dependencies.
+
+        Args:
+            source_files ([SourceFile]): Source files of the analysed system
+
+        Returns:
+            [SourceFile]: The JavaScript sources, in a stable order
+        """
+        return sorted(
+            (
+                f
+                for f in source_files
+                if f.file is not None
+                and f.suffix == JS_SUFFIX
                 and NODE_MODULES not in PurePath(f.path).parts
             ),
             key=lambda f: f.path,
