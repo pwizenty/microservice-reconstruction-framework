@@ -129,10 +129,24 @@ detection entirely.
 | ActiveMQ, STOMP | tagged events, three modes | with a certificate `CONNECTED` and one event consumed; without, and in plaintext, nothing delivered; the broker logs `certificate_required` |
 | gRPC endpoint | three credential modes after rc4 | mutual TLS returns the report; TLS without a client certificate and plaintext are refused |
 | Broker connectors | the broker's own log | `ssl://` and `stomp+ssl://` with `transport.needClientAuth=true`, no plaintext connector |
+| All three protocols | a client certificate from a second authority no service trusts, 10-22 | refused everywhere: REST `curl exit 56` after the server requests a certificate, the broker logs `(certificate_unknown) PKIX path building failed` and delivers nothing, gRPC drops the connection |
+| All three protocols | a server addressed under a name its certificate does not carry, 10-22 | refused everywhere: REST `curl exit 60`, the Python client reports `Hostname mismatch, certificate is not valid for 'not-the-broker.example'`, the gRPC channel never becomes ready |
 
-*Does not establish:* host-name verification for the queue probe, which
-disables name matching while keeping CA verification; nor anything about paths
-not probed.
+The negative cases needed a second certificate authority, which the assessment
+until then did not have, and a name outside the certificates - every one of
+which carries `dns:<service>, dns:localhost, ip:127.0.0.1`, so neither
+`localhost` nor the loopback address can serve as a mismatching name.
+`curl --resolve`, Python's `server_hostname` and gRPC's
+`ssl_target_name_override` supply one without changing anything in the system
+under test. Each case ran with the valid call as its control in the same
+container run.
+
+*Does not establish:* the reason for two of the six refusals. gRPC reports
+`UNAVAILABLE` for the untrusted issuer, the same class as for plaintext, and
+reports only a deadline for the name mismatch, so both are attributable to the
+changed variable through the control rather than read from the message. The
+probe's positive queue case still disables name matching while keeping CA
+verification. Nothing is established about paths not probed.
 
 ### Functional level — what the sequence tests show
 
@@ -144,8 +158,16 @@ not probed.
 | gRPC business call | works, plaintext | works, mutual TLS | works, mutual TLS |
 | Queue consumer | consuming | consuming over TLS | consuming over TLS |
 
-*Does not establish:* behaviour behind the API key and the token, which these
-requests do not reach; and one run per tree on one machine.
+Two further results, measured 10-22 on the repaired tree after the table above:
+
+| | |
+|---|---|
+| A business event from the **application's own** producer | one `POST /policies` makes the policy management backend call the Customer Core over the secured connector and emit an `UpdatePolicyEvent` through the secured broker. The Node consumer received it and all eight compared fields matched - the marker in three places, the customer id, three amounts and the currency. **Measured twice**, with different markers and policy ids, which makes it the only repeated condition of this work |
+| The self-service call to the Customer Core | `GET /cities/8001` is whitelisted in the self-service backend and served by `CustomerCoreRemoteProxy`, so it crosses the secured connector and returns `Zürich` through it. `/customers` does not: it stops at the API-key check, which is why that interaction had no functional evidence before |
+
+*Does not establish:* behaviour behind the API key and the bearer token, which
+no request here reaches; five of the six queues, which stay covered at
+connector level only; and one run per tree on one machine.
 
 ### What no level establishes
 

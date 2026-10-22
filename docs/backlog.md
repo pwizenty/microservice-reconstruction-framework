@@ -9,7 +9,7 @@ something other than the order it was written in. Items marked **decision**
 need an answer before they can be started; items marked **blocked** cannot be
 tested against any system available here.
 
-Last reviewed 2026-10-21.
+Last reviewed 2026-10-22.
 
 ## Done, for context
 
@@ -29,6 +29,7 @@ So the list below reads as the remainder rather than as the whole picture.
 | Node-side communication facts | **B3** below: a gRPC endpoint and a broker leg, their transport read from the sources by name, declared as LEMMA aspects and judged. Two channels of Lakeside Mutual that the detection had never seen |
 | Service model diagrams | LEMMA, `de.fhdo.lemma.servicedsl.diagram`, verified in Eclipse |
 | Contribution against the predecessor, measured | `contribution-delta.md`: what MRF adds that the earlier workflow could not express, in numbers, with text ready for §I and §V |
+| Mutual authentication, both negative directions | measured 2026-10-22 on `be2fe7f`, each case with its positive control in the same container run: a client certificate from a second authority no service trusts is refused over REST, STOMP and gRPC alike, and so is a server addressed under a name its certificate does not carry. Plus a business event from the **application's own** producer through the secured broker to the Node consumer, all eight compared fields matching, and the one interaction that had no functional evidence. Probes and tables in `saner2027-evidence` |
 | Experiment protocol | `experiment-protocol.md`: all ten generation runs including the three not reported, the thirty verification entries and why they exist, the environment, the seven defects found in the measuring apparatus, and the consolidated evidence |
 | Monitoring regression, found and repaired | `monitoring-regression.md`: resolving the Customer Core's connector breaks the monitoring scrape, which no finding reports in either direction. Caught by the declared-loss field, quantified by a runtime test, and repaired by rc5 - the first proposal whose input is a declared loss rather than a finding |
 | Channel inventory, by hand | `channel-inventory-lakeside-mutual.md`: every communication path of Lakeside Mutual at `622632f`, enumerated from the sources without consulting the reconstruction. Fourteen in scope, ten carried by the models, and the four that are not are all the monitoring channels |
