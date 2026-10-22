@@ -139,6 +139,11 @@ reports every deployment node that deploys no reconstructed microservice as a
 *potential unmodelled client* - not as a finding, because nothing there says
 such a node communicates at all.
 
+A channel with only one reconstructed end is the harder case, because nothing
+reports it in either direction: the monitoring server has no service model, so
+breaking its relationship produces no finding and repairing it produces none
+either. `monitoring-regression.md` records that case end to end.
+
 **Measured, and it bounds what any detection can be tested against:** neither
 sample system configures TLS anywhere. Eleven services across Lakeside Mutual
 and park-and-charge, every one a plaintext main connector, no management port.

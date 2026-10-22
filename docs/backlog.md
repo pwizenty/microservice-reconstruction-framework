@@ -28,6 +28,7 @@ So the list below reads as the remainder rather than as the whole picture.
 | Server-side communication facts | **A1** below: ports, protocol, TLS, client auth, end to end into a LEMMA aspect |
 | Node-side communication facts | **B3** below: a gRPC endpoint and a broker leg, their transport read from the sources by name, declared as LEMMA aspects and judged. Two channels of Lakeside Mutual that the detection had never seen |
 | Service model diagrams | LEMMA, `de.fhdo.lemma.servicedsl.diagram`, verified in Eclipse |
+| Monitoring regression, found and repaired | `monitoring-regression.md`: resolving the Customer Core's connector breaks the monitoring scrape, which no finding reports in either direction. Caught by the declared-loss field, quantified by a runtime test, and repaired by rc5 - the first proposal whose input is a declared loss rather than a finding |
 | Channel inventory, by hand | `channel-inventory-lakeside-mutual.md`: every communication path of Lakeside Mutual at `622632f`, enumerated from the sources without consulting the reconstruction. Fourteen in scope, ten carried by the models, and the four that are not are all the monitoring channels |
 | Deployment coverage of the detection | `detect-smells.sh --deployment` compares the operation model against the service models and reports every node deploying no reconstructed microservice as a *potential unmodelled client*. On Lakeside Mutual: the monitoring server and the NGINX demonstration - the two real clients of the Customer Core's connector that the models do not carry |
 
