@@ -1,0 +1,533 @@
+diff --git a/FAQ.md b/FAQ.md
+index 24bbc90..e79e196 100644
+--- a/FAQ.md
++++ b/FAQ.md
+@@ -131,6 +131,27 @@ An error naming `certs/policy-management-backend.p12`, a
+ have not been generated yet. Run `bash ./generate-certificates.sh` in the
+ repository root and start the services again.
+ 
++## Spring Boot Admin shows the Customer Core as OFFLINE
++
++The Customer Core requires mutual TLS on all of its endpoints, actuator
++endpoints included, so the monitoring server has to present a client
++certificate when it polls them. If `certs/spring-boot-admin.p12` and
++`certs/truststore.p12` are missing, the monitoring server logs
++
++```
++WARN c.l.s.MonitoringTlsConfiguration : No key or trust store found at ...
++```
++
++on startup and cannot reach the Customer Core, while the services it reaches
++over plaintext HTTP stay `UP`. Run `bash ./generate-certificates.sh` in the
++repository root and restart the monitoring server.
++
++A `No subject alternative DNS name matching ... found` error instead means the
++Customer Core registered under an address its certificate does not carry. The
++registered address is pinned with `spring.boot.admin.client.instance.service-base-url`
++in `customer-core/src/main/resources/application.properties`, and overridden to
++the Compose service name in `docker-compose.yml`.
++
+ ## I'm getting a file not found: failure to deploy on docker builds
+ 
+ ````bash
+diff --git a/README.md b/README.md
+index f229579..7248589 100644
+--- a/README.md
++++ b/README.md
+@@ -56,7 +56,7 @@ Detailed setup instructions can be found in each application's README file. To c
+ 1. Install [Node](https://nodejs.org/en/). Version 12 or later is required. You can check the currently installed version by running `node --version`.
+ 1. Install Python. We don't use Python ourselves, but some Node.js packages require native addons that are built using node-gyp, which requires Python. See the [node-gyp README for details on which Python version to install](https://github.com/nodejs/node-gyp#on-unix).
+ 1. Install Maven (see [https://maven.apache.org](https://maven.apache.org) for installation instructions).
+-1. Generate the development certificates by running `bash ./generate-certificates.sh`. The Customer Core serves its API over mutual TLS, the ActiveMQ broker hosted by the Policy Management backend does the same, and so does the gRPC endpoint of the Risk Management server, so every service on either end of those channels needs a key store and a trust store. These are generated rather than committed, because they contain private keys; they are for development only. The `run_all_applications.sh` and `run_customer_management_applications.sh` scripts run this step for you.
++1. Generate the development certificates by running `bash ./generate-certificates.sh`. The Customer Core serves its API over mutual TLS, the ActiveMQ broker hosted by the Policy Management backend does the same, and so does the gRPC endpoint of the Risk Management server, so every service on either end of those channels needs a key store and a trust store. The Spring Boot Admin application needs them too, because it polls the Customer Core's actuator endpoints and is therefore a client of it. These are generated rather than committed, because they contain private keys; they are for development only. The `run_all_applications.sh` and `run_customer_management_applications.sh` scripts run this step for you.
+ 1. Run the `run_all_applications` script suitable for your platform. Note that the frontend applications might be running before the backends are ready. In that case, just reload the page in the browser.
+ 
+ If the script exits, one of the applications could not be started. For troubleshooting, we recommend to start the applications individually. Note that you don't need to start all applications. The overview diagram above can be used to figure out the dependencies of each service. 
+diff --git a/REFACTORING-NOTES.md b/REFACTORING-NOTES.md
+index 3151572..d785542 100644
+--- a/REFACTORING-NOTES.md
++++ b/REFACTORING-NOTES.md
+@@ -166,6 +166,10 @@ Everything below was run in this worktree.
+   and fixing it would mean configuring the admin server's reactive web client,
+   so it was left alone. The registration call in the other direction
+   (`spring.boot.admin.client.url`) is still plain HTTP and is likewise untouched.
++  **Resolved since**, in
++  [the fourth section below](#refactoring-notes-mutual-tls-for-the-monitoring-channel):
++  the admin server's web client now presents a certificate of its own. The
++  registration direction is still plain HTTP.
+ - **Windows.** `generate-certificates.sh` is a bash script. The repository's
+   `run_all_applications.bat` and `run_customer_management_applications.bat` have
+   no equivalent step, so a Windows developer has to run the script under a bash
+@@ -634,3 +638,230 @@ not part of the patch.
+ - **Windows.** Unchanged from the earlier root causes: `generate-certificates.sh`
+   is a bash script and `riskmanager.bat` has no equivalent step, so a Windows
+   user must generate the material another way before the client will connect.
++
++# Refactoring notes: mutual TLS for the monitoring channel
++
++The three preceding sections resolved all four root causes the detection
++reports. This section repairs the one channel they broke, which the detection
++cannot report: the Spring Boot Admin server is not reconstructed as a
++microservice, so it has no model for the detection to judge.
++
++The first section already declared the loss. The Customer Core's connector
++became mutually authenticated, and the monitoring server kept polling its
++actuator endpoints as an anonymous client, so the Customer Core rejected it:
++
++```
++Spring Boot Admin, /instances, before this change
++    customer-core                    OFFLINE
++    customer-management-backend      UP
++    customer-self-service-backend    UP
++    policy-management-backend        UP
++```
++
++The repair is entirely on the monitoring side. Nothing belonging to the four
++root causes was touched: the Customer Core's connector, the broker's two
++connectors and the gRPC endpoint are exactly as the preceding sections describe
++them, and this change does not weaken any of them. Monitoring is a
++service-to-service channel like any other, so it gets the same refactoring,
++**Use Mutual TLS**, rather than an exception carved out of the Customer Core.
++
++## What changed
++
++### The monitoring server: Spring Boot Admin
++
++`spring-boot-admin/src/main/java/com/lakesidemutual/springbootadmin/MonitoringTlsConfiguration.java`
++(new)
++
++Spring Boot Admin polls the registered applications through an
++`InstanceWebClient`, which its `AdminServerInstanceWebClientConfiguration`
++builds from the `WebClient.Builder` bean Spring Boot auto-configures. The new
++class contributes a `WebClientCustomizer` to that builder which replaces the
++connector with a `JdkClientHttpConnector` over a `java.net.http.HttpClient`
++carrying an `SSLContext` built from two stores: the key store with the
++monitoring server's own certificate and private key, and the shared trust store
++with the development CA.
++
++The customizer is `@Order(Ordered.LOWEST_PRECEDENCE)` so that it runs after
++Spring Boot's own `webClientHttpConnectorCustomizer`, whose connector it is
++meant to replace.
++
++The `SSLContext` is handed to the JDK's `HttpClient` and nothing else is set, so
++the client's default certificate-path and hostname verification stay in place.
++This mirrors the two `RestTemplate` callers of the Customer Core, which use the
++same JDK HTTP client through `JdkClientHttpRequestFactory`.
++
++One connector serves every registered application, so the three services still
++reached over plaintext HTTP are unaffected: an `http://` URL never enters the
++TLS path.
++
++`spring-boot-admin/src/main/resources/application.properties`
++
++Four new properties, plus two optional `...Type` properties defaulting to
++`PKCS12`, following the naming of `customercore.tls.*` in the three callers so
++that the environment-variable override mechanism works the same way
++(`MONITORING_TLS_KEYSTORE` and friends):
++
++```properties
++monitoring.tls.keyStore=file:./certs/spring-boot-admin.p12
++monitoring.tls.keyStorePassword=changeit
++monitoring.tls.trustStore=file:./certs/truststore.p12
++monitoring.tls.trustStorePassword=changeit
++```
++
++### The other end: the Customer Core's registration
++
++`customer-core/src/main/resources/application.properties`
++
++```properties
++spring.boot.admin.client.instance.service-base-url = https://localhost:8110
++```
++
++The scheme was never the problem. Spring Boot Admin's client derives it from
++`server.ssl.enabled` (`DefaultApplicationFactory#getScheme`), so the Customer
++Core had been registering `https://.../actuator` ever since its connector was
++changed. The host was the problem: the same class derives it from
++`InetAddress.getLocalHost().getHostName()`, which on the machine this was
++verified on is `x37.clients.idial.fh` and is not a subject alternative name of
++any certificate in this system. The monitoring server would reach the right
++socket and then correctly refuse the certificate it was shown.
++
++Pinning the registered base URL to a name the certificate carries is the fix.
++It is the registration, not the connector: the connector, its port and its
++`client-auth=need` are untouched. The three plaintext services were left alone;
++they register under the same machine hostname and are reached over `http`,
++where no hostname check applies.
++
++### Certificates
++
++`generate-certificates.sh` gained `spring-boot-admin` as a seventh service, so
++it now issues a key store for it from the same development CA and copies it,
++with the shared trust store, into `spring-boot-admin/certs/`. The script is
++committed, its output is not, and `certs/` was already in `.gitignore`.
++
++### Docker Compose
++
++`docker-compose.yml` mounts `./spring-boot-admin/certs` read-only at `/certs`
++for the monitoring server, the same way the other services receive theirs, and
++passes `SPRING_BOOT_ADMIN_CLIENT_INSTANCE_SERVICE_BASE_URL=https://customer-core:8110`
++to the Customer Core, that being the subject alternative name its certificate
++carries inside the Compose network.
++
++### Documentation
++
++`README.md`, `FAQ.md` and `spring-boot-admin/README.md` were updated: the
++monitoring server now appears among the components that need generated
++material, the Spring Boot Admin README shows the `curl` invocation that reaches
++the Customer Core's actuator endpoints, and the FAQ has an entry for
++"Spring Boot Admin shows the Customer Core as OFFLINE".
++
++## What was assumed
++
++- **The monitoring server degrades rather than refusing to start.** When the
++  stores are absent, the bean logs a `WARN` naming both paths and the script
++  that produces them, and contributes no customizer. The server then starts,
++  monitors the three plaintext services, and leaves the Customer Core
++  `OFFLINE`. The alternative — failing startup — was rejected because
++  monitoring should not be able to take the system down, and because the
++  monitoring server has no test suite, so a hard failure would surface only at
++  run time anyway. Nothing is trusted that would not otherwise be trusted: the
++  fallback is the stock JDK client with the stock trust store and no client
++  certificate, not a permissive one.
++- **The monitoring server has an identity of its own.** It gets its own
++  certificate rather than borrowing another service's, for the same reason the
++  Risk Management Client got one: mutual TLS exists to authenticate peers.
++- **The monitoring server's own connector stays plaintext HTTP on port 9000**,
++  and so does the registration direction, in which the four services POST to
++  it. Securing that direction would mean turning the admin UI and
++  `http://localhost:9000/instances` into HTTPS, which is a different channel,
++  outside the scope this repair was given, and would break the stated
++  acceptance check. It is a real remaining plaintext channel and is listed
++  below as such.
++- **`WebClientCustomizer` rather than Spring Boot's SSL bundles.**
++  `spring.ssl.bundle.jks.*` with `WebClientSsl` would be fewer lines, but a
++  bundle is loaded eagerly at context refresh and throws when the store file is
++  missing, which rules out the graceful degradation above. The hand-built
++  `SSLContext` also matches what the three callers of the Customer Core already
++  do.
++- **Password and validity** are unchanged from the earlier sections:
++  `changeit`, 365 days, development only.
++
++## What was verified
++
++All five Spring Boot applications were started from their own directories with
++`./mvnw spring-boot:run` against freshly generated material.
++
++- `http://localhost:9000/instances` reports **four services, all `UP`**, with
++  the Customer Core registered as `https://localhost:8110/`:
++
++  ```
++  policy-management-backend        UP   http://x37.clients.idial.fh:8090/
++  customer-self-service-backend    UP   http://x37.clients.idial.fh:8080/
++  customer-management-backend      UP   http://x37.clients.idial.fh:8100/
++  customer-core                    UP   https://localhost:8110/
++  ```
++
++- The Customer Core's request log shows the poll arriving over the TLS
++  connector every 20 seconds, from the JDK client the new configuration
++  installs:
++
++  ```
++  DEBUG ... CommonsRequestLoggingFilter : Before request [GET /actuator/health,
++      headers=[... host:"localhost:8110", user-agent:"Java-http-client/21.0.12.1", ...]]
++  ```
++
++- **Negative: no client certificate.** A request to
++  `https://localhost:8110/actuator/health` that trusts the development CA but
++  presents no certificate is rejected during the handshake with
++  `tlsv13 alert certificate required`. The same request presenting
++  `spring-boot-admin.crt.pem` and its key returns `200 {"status":"UP"}`. The
++  Customer Core's connector therefore still requires a client certificate, and
++  the monitoring server reaches it by presenting one, not because anything was
++  relaxed.
++- **Clean checkout, no key material.** With every `certs/` directory deleted,
++  `./mvnw -B test` passes in `spring-boot-admin` (no tests, build succeeds) and
++  in `customer-core` (26 tests, 0 failures). The monitoring server starts in
++  that state and logs the expected warning:
++
++  ```
++  WARN c.l.s.MonitoringTlsConfiguration : No key or trust store found at
++      URL [file:certs/spring-boot-admin.p12] and URL [file:certs/truststore.p12] ...
++  ```
++
++- `git status` is clean of generated key material: `certs/`, `*.p12`, `*.jks`
++  and `*.csr` were already ignored, and the new `spring-boot-admin/certs/`
++  falls under the same `certs/` rule.
++- No test was disabled and no assertion was weakened. No `TrustAllStrategy`,
++  `NoopHostnameVerifier`, `InsecureTrustManagerFactory` or
++  `rejectUnauthorized: false` appears anywhere in the patch.
++
++## What could not be verified, and known consequences
++
++- **The reconstruction and the detection were not re-run.** The toolchain is
++  not present in this worktree and the instructions are to stay inside it.
++  Reasoning only: no plaintext address was introduced by this change. The one
++  property added to a modelled service,
++  `spring.boot.admin.client.instance.service-base-url`, carries `https`; the
++  pre-existing `spring.boot.admin.client.url = http://localhost:9000` in all
++  four services is untouched and produced no finding before.
++- **The Docker Compose deployment was not started.** Verification ran the
++  services directly on the host. The Compose changes are a volume mount of the
++  same shape the other services already have and one environment variable, but
++  the containerised path was not exercised.
++- **`kubernetes/manifests/` and `kubernetes/docker-compose.yml` were not
++  updated**, and the monitoring server will not reach the Customer Core there.
++  Changing Kubernetes manifests was ruled out for this work.
++- **The registration direction is still plaintext.** The four services POST
++  their registration to `http://spring-boot-admin:9000`, and the admin UI is
++  served over plaintext HTTP. That is a genuine remaining non-secured channel.
++  It is outside the scope this repair was given, and the acceptance check for
++  it is stated in terms of `http://localhost:9000/instances`, so it was left
++  alone deliberately rather than overlooked.
++- **The registered address is now pinned**, which means a developer who reaches
++  the Customer Core under some other name has to override
++  `SPRING_BOOT_ADMIN_CLIENT_INSTANCE_SERVICE_BASE_URL` and add that name to the
++  certificate's subject alternative names in `generate-certificates.sh`.
++- **No authorisation beyond the channel.** Any holder of a certificate from the
++  development CA can read the Customer Core's actuator endpoints. §3.7 is about
++  the channel; endpoint authorisation would be a separate refactoring.
++- **Windows.** Unchanged from the earlier sections: `generate-certificates.sh`
++  is a bash script with no `.bat` equivalent.
+diff --git a/customer-core/src/main/resources/application.properties b/customer-core/src/main/resources/application.properties
+index f13b650..a6989f9 100644
+--- a/customer-core/src/main/resources/application.properties
++++ b/customer-core/src/main/resources/application.properties
+@@ -44,4 +44,13 @@ spring.main.allow-bean-definition-overriding=true
+ # Enable request logging, see the RequestLoggingFilterConfig for details
+ logging.level.org.springframework.web.filter.CommonsRequestLoggingFilter=DEBUG
+ 
+-spring.boot.admin.client.url = http://localhost:9000
+\ No newline at end of file
++spring.boot.admin.client.url = http://localhost:9000
++
++# Spring Boot Admin derives the address it registers from the local hostname,
++# which no certificate in this system carries as a subject alternative name.
++# The monitoring server now reaches the actuator endpoints over mutual TLS, so
++# the registered address has to be one the Customer Core's certificate covers:
++# "localhost" here, and the Compose service name in docker-compose.yml. The
++# scheme is https because the connector above enables TLS; Spring Boot Admin
++# would have derived that part on its own.
++spring.boot.admin.client.instance.service-base-url = https://localhost:8110
+\ No newline at end of file
+diff --git a/docker-compose.yml b/docker-compose.yml
+index 3dbee26..1253f1c 100644
+--- a/docker-compose.yml
++++ b/docker-compose.yml
+@@ -25,6 +25,11 @@ services:
+   spring-boot-admin:
+     build: spring-boot-admin
+     image: lakesidemutual/spring-boot-admin
++    # The monitoring server polls the Customer Core's actuator endpoints, which
++    # are served over mutual TLS, so it is a client of the Customer Core like
++    # any other and needs the same two stores.
++    volumes:
++      - "./spring-boot-admin/certs:/certs:ro"
+     ports:
+       - "9000:9000"
+ 
+@@ -33,6 +38,10 @@ services:
+     image: lakesidemutual/customer-core
+     environment:
+       - "SPRING_BOOT_ADMIN_CLIENT_URL=http://spring-boot-admin:9000"
++      # The address the monitoring server will poll. It has to be one of this
++      # service's subject alternative names, and the derived default - the
++      # container's hostname - is not.
++      - "SPRING_BOOT_ADMIN_CLIENT_INSTANCE_SERVICE_BASE_URL=https://customer-core:8110"
+     # The Customer Core serves its API over mutual TLS. The key and trust
+     # stores are generated by ./generate-certificates.sh and mounted here,
+     # because they are deliberately not part of the image. The container's
+diff --git a/generate-certificates.sh b/generate-certificates.sh
+index a91305c..5594b15 100644
+--- a/generate-certificates.sh
++++ b/generate-certificates.sh
+@@ -38,10 +38,13 @@ VALIDITY=365
+ #   risk-management-client          calls that gRPC endpoint; not part of the
+ #                                   Docker Compose deployment, but it has to
+ #                                   present a certificate from this same CA
++#   spring-boot-admin               polls every registered service's actuator
++#                                   endpoints, so it is a client of the
++#                                   Customer Core like any other
+ #
+ # The two risk-management peers are Node services, so they need the PEM files
+ # rather than the PKCS#12 store.
+-SERVICES="customer-core customer-management-backend customer-self-service-backend policy-management-backend risk-management-server risk-management-client"
++SERVICES="customer-core customer-management-backend customer-self-service-backend policy-management-backend risk-management-server risk-management-client spring-boot-admin"
+ 
+ if [ "${1:-}" = "--force" ]; then
+     echo "--force given, removing previously generated material"
+diff --git a/spring-boot-admin/README.md b/spring-boot-admin/README.md
+index c87680e..c76ef6b 100644
+--- a/spring-boot-admin/README.md
++++ b/spring-boot-admin/README.md
+@@ -12,6 +12,8 @@ with [Apache Maven](https://maven.apache.org/). To get started, install Java and
+ 
+ ## Launch Application
+ 
++Before the first launch, run `./generate-certificates.sh` in the repository root once. The Customer Core serves its actuator endpoints over mutual TLS, so the monitoring server needs a key store of its own and the shared trust store to poll them. Without that material the application still starts and still monitors the applications it reaches over plaintext HTTP, but it logs a warning and the Customer Core stays `OFFLINE`.
++
+ In order to launch the Spring Boot Admin application, you can run the command `mvn spring-boot:run` and open [http://localhost:9000](http://localhost:9000). 
+ 
+ Alternatively, you can download and install the Spring Tool Suite:
+@@ -46,4 +48,15 @@ curl http://localhost:8100/actuator/health
+ }
+ ```
+ 
++Monitoring is a service-to-service channel like any other. The Customer Core requires mutual TLS on all of its endpoints, actuator endpoints included, so the monitoring server presents a client certificate of its own when it polls it:
++
++```
++curl --cert ../certs/spring-boot-admin.crt.pem \
++     --key ../certs/spring-boot-admin.key \
++     --cacert ../certs/ca.crt \
++     https://localhost:8110/actuator/health
++```
++
++See `MonitoringTlsConfiguration` for how the HTTP client is built. The applications that are still reached over plaintext HTTP are not affected by it.
++
+ See the [Spring Boot Admin documentation](http://codecentric.github.io/spring-boot-admin/2.1.0) to learn more about the different capabilities and configuration options.
+\ No newline at end of file
+diff --git a/spring-boot-admin/src/main/java/com/lakesidemutual/springbootadmin/MonitoringTlsConfiguration.java b/spring-boot-admin/src/main/java/com/lakesidemutual/springbootadmin/MonitoringTlsConfiguration.java
+new file mode 100644
+index 0000000..da0fd64
+--- /dev/null
++++ b/spring-boot-admin/src/main/java/com/lakesidemutual/springbootadmin/MonitoringTlsConfiguration.java
+@@ -0,0 +1,115 @@
++package com.lakesidemutual.springbootadmin;
++
++import java.io.InputStream;
++import java.net.http.HttpClient;
++import java.security.KeyStore;
++
++import javax.net.ssl.KeyManagerFactory;
++import javax.net.ssl.SSLContext;
++import javax.net.ssl.TrustManagerFactory;
++
++import org.slf4j.Logger;
++import org.slf4j.LoggerFactory;
++import org.springframework.beans.factory.annotation.Value;
++import org.springframework.boot.web.reactive.function.client.WebClientCustomizer;
++import org.springframework.context.annotation.Bean;
++import org.springframework.context.annotation.Configuration;
++import org.springframework.core.Ordered;
++import org.springframework.core.annotation.Order;
++import org.springframework.core.io.Resource;
++import org.springframework.http.client.reactive.JdkClientHttpConnector;
++
++/**
++ * Configures the HTTP client that the Spring Boot Admin server uses to poll the
++ * actuator endpoints of the applications registered with it.
++ *
++ * Monitoring is a service-to-service channel like any other: the Customer Core
++ * serves its API, actuator endpoints included, over mutual TLS and rejects
++ * callers that do not present a certificate. The monitoring server therefore
++ * needs the same two stores every other caller of the Customer Core needs: the
++ * key store holding its own certificate and private key, and the trust store
++ * holding the CA that signed the Customer Core's certificate. Both are
++ * generated by ./generate-certificates.sh in the repository root.
++ *
++ * The customizer is applied to the {@code WebClient.Builder} that Spring Boot
++ * auto-configures, which is the builder Spring Boot Admin's
++ * {@code InstanceWebClient} is built from. It runs last so that it replaces the
++ * connector set by Spring Boot's own {@code webClientHttpConnectorCustomizer}.
++ * The connector is used for every registered application, so the services that
++ * are still reached over plaintext HTTP keep working unchanged.
++ */
++@Configuration
++public class MonitoringTlsConfiguration {
++	private static final Logger LOG = LoggerFactory.getLogger(MonitoringTlsConfiguration.class);
++
++	@Value("${monitoring.tls.keyStore}")
++	private Resource keyStore;
++
++	@Value("${monitoring.tls.keyStorePassword}")
++	private String keyStorePassword;
++
++	@Value("${monitoring.tls.keyStoreType:PKCS12}")
++	private String keyStoreType;
++
++	@Value("${monitoring.tls.trustStore}")
++	private Resource trustStore;
++
++	@Value("${monitoring.tls.trustStorePassword}")
++	private String trustStorePassword;
++
++	@Value("${monitoring.tls.trustStoreType:PKCS12}")
++	private String trustStoreType;
++
++	@Bean
++	@Order(Ordered.LOWEST_PRECEDENCE)
++	public WebClientCustomizer monitoringTlsWebClientCustomizer() throws Exception {
++		if (!keyStore.exists() || !trustStore.exists()) {
++			/*
++			 * The stores are generated, not committed, so a fresh checkout does not
++			 * carry them. The monitoring server still starts and still monitors the
++			 * applications it reaches over plaintext HTTP; the ones behind mutual TLS
++			 * stay OFFLINE until the stores are there. Nothing is trusted that would
++			 * not otherwise be trusted - the client simply falls back to the JDK's
++			 * default trust material and presents no certificate.
++			 */
++			LOG.warn("No key or trust store found at {} and {}. Applications that require a client "
++					+ "certificate, such as the Customer Core, cannot be monitored. Run "
++					+ "./generate-certificates.sh in the repository root and restart.",
++					keyStore, trustStore);
++			return builder -> {
++			};
++		}
++
++		/*
++		 * The JDK's HttpClient is given the SSLContext only. It verifies the server
++		 * hostname against the certificate by default, and that default is left
++		 * alone deliberately.
++		 */
++		JdkClientHttpConnector connector = new JdkClientHttpConnector(
++				HttpClient.newBuilder().sslContext(mutualTlsContext()).build());
++		return builder -> builder.clientConnector(connector);
++	}
++
++	private SSLContext mutualTlsContext() throws Exception {
++		KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(
++				KeyManagerFactory.getDefaultAlgorithm());
++		keyManagerFactory.init(load(keyStore, keyStoreType, keyStorePassword),
++				keyStorePassword.toCharArray());
++
++		TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(
++				TrustManagerFactory.getDefaultAlgorithm());
++		trustManagerFactory.init(load(trustStore, trustStoreType, trustStorePassword));
++
++		SSLContext sslContext = SSLContext.getInstance("TLS");
++		sslContext.init(keyManagerFactory.getKeyManagers(), trustManagerFactory.getTrustManagers(), null);
++		return sslContext;
++	}
++
++	private static KeyStore load(Resource resource, String type, String password) throws Exception {
++		KeyStore store = KeyStore.getInstance(type);
++		try (InputStream inputStream = resource.getInputStream()) {
++			store.load(inputStream, password.toCharArray());
++		}
++		return store;
++	}
++}
+diff --git a/spring-boot-admin/src/main/resources/application.properties b/spring-boot-admin/src/main/resources/application.properties
+index f39307e..e2ea760 100644
+--- a/spring-boot-admin/src/main/resources/application.properties
++++ b/spring-boot-admin/src/main/resources/application.properties
+@@ -1,3 +1,19 @@
+ spring.application.name = spring-boot-admin
+ 
+ server.port = 9000
++
++# The monitoring server polls the actuator endpoints of every registered
++# application. The Customer Core serves them over mutual TLS and requires a
++# client certificate, so the monitoring server presents one of its own and
++# verifies the Customer Core against the shared trust store. See
++# MonitoringTlsConfiguration; the applications still reached over plaintext
++# HTTP are unaffected.
++#
++# The stores are not in version control. Run ./generate-certificates.sh in the
++# repository root once before starting the service.
++monitoring.tls.keyStore=file:./certs/spring-boot-admin.p12
++monitoring.tls.keyStorePassword=changeit
++monitoring.tls.keyStoreType=PKCS12
++monitoring.tls.trustStore=file:./certs/truststore.p12
++monitoring.tls.trustStorePassword=changeit
++monitoring.tls.trustStoreType=PKCS12
