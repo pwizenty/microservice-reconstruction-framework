@@ -85,9 +85,9 @@ check the claim rather than take it:
 
 ```text
 ruff          All checks passed!
-ruff format   141 files already formatted
+ruff format   142 files already formatted
 mypy          Success: no issues found in 58 source files
-pytest        168 passed in 0.50s
+pytest        168 passed in 0.45s
 ```
 
 `tests/test_node_transport.py` adds **12 checks** that each state one rule, and
