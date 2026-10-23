@@ -72,6 +72,13 @@ include = ["mrf", "README.rst", "LICENSE"]
 line-length = 88
 target-version = "py312"
 src = ["mrf", "tests"]
+# refactorings/ holds records of what was proposed and measured, including the
+# probe harnesses as they were run. Reformatting one would misreport the run, so
+# the records are kept out of lint and formatting rather than made to conform.
+extend-exclude = ["refactorings"]
+# refactorings/ holds records of what was proposed and measured, including the
+# probe harnesses as they were run. Reformatting one would misreport the run, so
+# the records are kept out of lint and formatting rather than made to conform.
 
 [tool.ruff.lint]
 select = [

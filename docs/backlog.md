@@ -9,7 +9,7 @@ something other than the order it was written in. Items marked **decision**
 need an answer before they can be started; items marked **blocked** cannot be
 tested against any system available here.
 
-Last reviewed 2026-10-12.
+Last reviewed 2026-10-22.
 
 ## Done, for context
 
@@ -26,7 +26,14 @@ So the list below reads as the remainder rather than as the whole picture.
 | Data model diagrams | LEMMA, `de.fhdo.lemma.data.datadsl.diagram`, verified in Eclipse |
 | Operation model diagrams | LEMMA, `de.fhdo.lemma.operationdsl.diagram`, verified in Eclipse |
 | Server-side communication facts | **A1** below: ports, protocol, TLS, client auth, end to end into a LEMMA aspect |
+| Node-side communication facts | **B3** below: a gRPC endpoint and a broker leg, their transport read from the sources by name, declared as LEMMA aspects and judged. Two channels of Lakeside Mutual that the detection had never seen |
 | Service model diagrams | LEMMA, `de.fhdo.lemma.servicedsl.diagram`, verified in Eclipse |
+| Contribution against the predecessor, measured | `contribution-delta.md`: what MRF adds that the earlier workflow could not express, in numbers, with text ready for §I and §V |
+| Mutual authentication, both negative directions | measured 2026-10-22 on `be2fe7f`, each case with its positive control in the same container run: a client certificate from a second authority no service trusts is refused over REST, STOMP and gRPC alike, and so is a server addressed under a name its certificate does not carry. Plus a business event from the **application's own** producer through the secured broker to the Node consumer, all eight compared fields matching, and the one interaction that had no functional evidence. Probes and tables in `saner2027-evidence` |
+| Experiment protocol | `experiment-protocol.md`: all ten generation runs including the three not reported, the thirty verification entries and why they exist, the environment, the seven defects found in the measuring apparatus, and the consolidated evidence |
+| Monitoring regression, found and repaired | `monitoring-regression.md`: resolving the Customer Core's connector breaks the monitoring scrape, which no finding reports in either direction. Caught by the declared-loss field, quantified by a runtime test, and repaired by rc5 - the first proposal whose input is a declared loss rather than a finding |
+| Channel inventory, by hand | `channel-inventory-lakeside-mutual.md`: every communication path of Lakeside Mutual at `622632f`, enumerated from the sources without consulting the reconstruction. Fourteen in scope, ten carried by the models, and the four that are not are all the monitoring channels |
+| Deployment coverage of the detection | `detect-smells.sh --deployment` compares the operation model against the service models and reports every node deploying no reconstructed microservice as a *potential unmodelled client*. On Lakeside Mutual: the monitoring server and the NGINX demonstration - the two real clients of the Customer Core's connector that the models do not carry |
 
 ## A. Security smell: the rest of the facts
 
@@ -50,7 +57,7 @@ document's order.
 | A6 | One link per profile, with the active one marked | profile-specific files plus `SPRING_PROFILES_ACTIVE` from the deployment | medium |
 | A7 | Several evidence records per fact | a nested structure, which `Data.values` cannot hold — **this is where a fourth collection and an ADR become necessary** | large |
 | A8a | **Asynchronous links** — JMS/ActiveMQ producers and consumers, the queue and the broker's transport | planned in `async-communication-plan.md`; six messaging interactions in Lakeside Mutual, none reconstructed today | medium |
-| A8b | gRPC client calls, Kafka `security.protocol` | further detectors — **blocked**: absent from every sample system available here | medium |
+| A8b | Kafka `security.protocol`, and a gRPC *client* call | further detectors. **Partly unblocked**: gRPC is not absent after all - Lakeside Mutual serves it from `risk-management-server`, and the server half is reconstructed since B3. What is still missing is the client half, and its only caller here is `risk-management-client`, which B2 reconstructs nothing for. Kafka remains blocked | medium |
 
 **A1 is done.** It needed no new mechanism, and it completes the client/server
 pair of which only the client half existed. **A2 is now the cheapest step**: the
@@ -79,7 +86,7 @@ Steps 1 and 2 are done. `node-plugin-plan.md` §8 holds the questions.
 |---|---|---|
 | B1 | The frontends | **decision**: reconstruct nothing, or their outgoing calls as `EXTERNAL` facts? Nothing is the honest default; the calls are architecture information no other plugin will see. Points at "nothing", given that frontend UI elements are already kept out of operation models |
 | B2 | `risk-management-client` | **decision**: a command line tool, not a service. Nothing, or a `utility` microservice? Recommendation: reconstruct nothing and record why |
-| B3 | A JavaScript parser for `createInsecure()` and the subscription | only if B1/A8 need it; behind an ADR |
+| ~~B3~~ | ~~A JavaScript parser for `createInsecure()` and the subscription~~ | **done, 2026-10-21, without a parser.** `mrf/plugins/service/node/javascript.py` reads the transport of a Node service's channels by name - `ServerCredentials.createInsecure`/`createSsl`, the `ssl` option of a connection, a protected broker scheme - as A2 reads `TrustAllStrategy` on the Java side. Scanning source text for an API name is not parsing, so ADR-0003 is untouched and no ADR was needed. `GrpcServer` and `MessageQueue` now carry `transportSecurity`, `clientAuth` where a client certificate is required, and the file as `valueSource` |
 
 ## C. Operation model diagrams
 

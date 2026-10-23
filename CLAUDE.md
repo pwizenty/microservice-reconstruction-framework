@@ -33,8 +33,9 @@ Before claiming a task is done: ruff, mypy and pytest must pass. Show the output
   - `data/protobuf/`, `service/protobuf/` – a gRPC contract: messages into the domain
     phase, service and rpcs into the service phase; one selection (`Protobuf`) feeds both
   - `service/node/` – what a Node service serves, from `package.json` and its own
-    configuration; attaches to the microservice another plugin reconstructed, and
-    reconstructs none of its own
+    configuration, plus the transport of its channels from its sources by name
+    (`javascript.py`, no JavaScript parser); attaches to the microservice another
+    plugin reconstructed, and reconstructs none of its own
   - `common/common_plugin.py` – shared `Data` (meta-data) and `JavaClassArtifact`
 - `mrf/utilities/java_utils.py`, `mrf/utilities/sping.py`, `mrf/utilities/docker.py`,
   `mrf/utilities/communication.py`, `mrf/utilities/proto_utils.py` (hand-written proto3

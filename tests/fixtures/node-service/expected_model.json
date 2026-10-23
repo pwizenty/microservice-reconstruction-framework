@@ -71,7 +71,7 @@
           "values": {
             "host": "0.0.0.0",
             "port": "50052",
-            "transportSecurity": "UNRESOLVED"
+            "transportSecurity": "unresolved"
           }
         },
         {
@@ -83,7 +83,7 @@
             "queue": "newreports",
             "scheme": "stomp",
             "credentialsConfigured": "true",
-            "transportSecurity": "UNRESOLVED"
+            "transportSecurity": "unresolved"
           }
         }
       ],

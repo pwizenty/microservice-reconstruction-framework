@@ -1,0 +1,245 @@
+{
+  "contexts": [
+    {
+      "collections": [],
+      "data": [],
+      "data_structures": [
+        {
+          "data": [],
+          "fields": [
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": { "protoType": "string" }
+                }
+              ],
+              "field_type": { "name": "string" },
+              "name": "payload"
+            }
+          ],
+          "name": "Batch",
+          "origin_file": "src/plaintext/ingest.proto",
+          "qualified_name": "ingest.Ingest.Batch"
+        },
+        {
+          "data": [],
+          "fields": [
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": { "protoType": "string" }
+                }
+              ],
+              "field_type": { "name": "string" },
+              "name": "id"
+            }
+          ],
+          "name": "Receipt",
+          "origin_file": "src/plaintext/ingest.proto",
+          "qualified_name": "ingest.Ingest.Receipt"
+        }
+      ],
+      "enums": [],
+      "name": "Ingest",
+      "origin_file": "src/plaintext/ingest.proto",
+      "qualified_name": "ingest.Ingest"
+    },
+    {
+      "collections": [],
+      "data": [],
+      "data_structures": [
+        {
+          "data": [],
+          "fields": [
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": { "protoType": "string" }
+                }
+              ],
+              "field_type": { "name": "string" },
+              "name": "period"
+            }
+          ],
+          "name": "Request",
+          "origin_file": "src/secured/report.proto",
+          "qualified_name": "report.Report.Request"
+        },
+        {
+          "data": [],
+          "fields": [
+            {
+              "data": [
+                {
+                  "name": "ProtoField",
+                  "values": { "protoType": "string" }
+                }
+              ],
+              "field_type": { "name": "string" },
+              "name": "body"
+            }
+          ],
+          "name": "Document",
+          "origin_file": "src/secured/report.proto",
+          "qualified_name": "report.Report.Document"
+        }
+      ],
+      "enums": [],
+      "name": "Report",
+      "origin_file": "src/secured/report.proto",
+      "qualified_name": "report.Report"
+    }
+  ],
+  "microservices": [
+    {
+      "data": [
+        { "name": "public", "values": {} },
+        { "name": "functional", "values": {} },
+        {
+          "name": "GrpcServer",
+          "values": {
+            "host": "0.0.0.0",
+            "port": "50061",
+            "transportSecurity": "plaintext",
+            "valueSource": "src/plaintext/index.js"
+          }
+        },
+        {
+          "name": "MessageQueue",
+          "values": {
+            "host": "broker",
+            "port": "61613",
+            "broker": "activemq",
+            "queue": "batches",
+            "scheme": "stomp",
+            "credentialsConfigured": "true",
+            "transportSecurity": "plaintext",
+            "valueSource": "src/plaintext/index.js"
+          }
+        }
+      ],
+      "interfaces": [
+        {
+          "data": [
+            {
+              "name": "ProtoService",
+              "values": { "address": "ingest.Ingest" }
+            }
+          ],
+          "name": "Ingest",
+          "operations": [
+            {
+              "data": [{ "name": "ProtoRpc", "values": {} }],
+              "name": "Accept",
+              "parameters": [
+                {
+                  "communication_type": "Synchronous",
+                  "data": [],
+                  "exchange_pattern": "In",
+                  "name": "Batch",
+                  "type": {
+                    "class_type": "DATA_STRUCTURE",
+                    "name": "Batch",
+                    "qualified_name": "ingest.Ingest.Batch"
+                  }
+                },
+                {
+                  "communication_type": "Synchronous",
+                  "data": [],
+                  "exchange_pattern": "Out",
+                  "name": "Receipt",
+                  "type": {
+                    "class_type": "DATA_STRUCTURE",
+                    "name": "Receipt",
+                    "qualified_name": "ingest.Ingest.Receipt"
+                  }
+                }
+              ]
+            }
+          ],
+          "qualified_name": "ingest.Ingest.Ingest"
+        }
+      ],
+      "name": "Ingest",
+      "origin_file": "src/plaintext/ingest.proto",
+      "qualified_name": "ingest.Ingest"
+    },
+    {
+      "data": [
+        { "name": "public", "values": {} },
+        { "name": "functional", "values": {} },
+        {
+          "name": "GrpcServer",
+          "values": {
+            "host": "0.0.0.0",
+            "port": "50062",
+            "transportSecurity": "tls",
+            "clientAuth": "need",
+            "valueSource": "src/secured/index.js"
+          }
+        },
+        {
+          "name": "MessageQueue",
+          "values": {
+            "host": "broker",
+            "port": "61614",
+            "broker": "activemq",
+            "queue": "reports",
+            "scheme": "stomp",
+            "credentialsConfigured": "true",
+            "transportSecurity": "tls",
+            "valueSource": "src/secured/index.js"
+          }
+        }
+      ],
+      "interfaces": [
+        {
+          "data": [
+            {
+              "name": "ProtoService",
+              "values": { "address": "report.Report" }
+            }
+          ],
+          "name": "Report",
+          "operations": [
+            {
+              "data": [{ "name": "ProtoRpc", "values": {} }],
+              "name": "Render",
+              "parameters": [
+                {
+                  "communication_type": "Synchronous",
+                  "data": [],
+                  "exchange_pattern": "In",
+                  "name": "Request",
+                  "type": {
+                    "class_type": "DATA_STRUCTURE",
+                    "name": "Request",
+                    "qualified_name": "report.Report.Request"
+                  }
+                },
+                {
+                  "communication_type": "Synchronous",
+                  "data": [],
+                  "exchange_pattern": "Out",
+                  "name": "Document",
+                  "type": {
+                    "class_type": "DATA_STRUCTURE",
+                    "name": "Document",
+                    "qualified_name": "report.Report.Document"
+                  }
+                }
+              ]
+            }
+          ],
+          "qualified_name": "report.Report.Report"
+        }
+      ],
+      "name": "Report",
+      "origin_file": "src/secured/report.proto",
+      "qualified_name": "report.Report"
+    }
+  ]
+}

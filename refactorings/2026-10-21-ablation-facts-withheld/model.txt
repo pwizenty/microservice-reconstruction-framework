@@ -1,0 +1,48 @@
+proposal      2026-10-21 ablation-facts-withheld
+purpose       ABLATION, SINGLE VARIABLE. Isolates what the reconstructed facts
+              contribute, by withholding them and nothing else. The comparison
+              run is 2026-10-13 rc1-customercore.
+smell         Non-Secured Service-to-Service Communications (Ponce et al. 2022, 3.7)
+refactoring   Use Mutual TLS
+cause         endpoint:CustomerCore
+skill         resolve-non-secured-communication (loaded, copied verbatim as skill.md)
+base          622632f  (fix/container-base-images, unpatched otherwise)
+
+model         claude-opus-5
+cli           2.1.292 (Claude Code)
+session       d247eab7-7b56-4f19-aa17-08d7bb7ec397
+turns         215
+duration_s    1499
+cost_usd      18.0348
+output_tokens 88997
+result        success  is_error=False
+
+mrf           96b2184a585e
+lemma         c6a2de7a5f80
+target        622632f7a9a2  (LakesideMutual)
+
+What was withheld, and what was not. Withheld: the aspect values quoted from the
+reconstructed models - the callee's connector with its port, protocol and TLS
+state, and one ServiceCall per caller with its scheme and client technology -
+and the finding counts. Kept, identically to rc1: the skill and its recipes, the
+harness-enforced constraints, the named callee and the scope boundary excluding
+root cause 2, the acceptance criteria, the same commit, model, worktree and tool
+allowlist. One variable therefore separates this run from rc1: whether the
+request carries the model-level evidence.
+
+What it established by reading the sources, which rc1 was told: the connector
+server.port = 8110, and three callers through customercore.baseURL - a Feign
+client in customer-management-backend and a RestTemplate in each of
+policy-management-backend and customer-self-service-backend.
+
+What it established that rc1 was NOT told, because the reconstruction does not
+report it: two further clients of that same connector. The Spring Boot Admin
+server, which polls each registered instance's actuator endpoints, and the nginx
+load-balancing demo under customer-core/nginx-loadbalancing/, which reverse
+proxies four Customer Core instances. Both were changed. rc1 left the admin
+server broken and declared the loss in its notes; this run repaired it.
+
+Extent: 27 files, +781/-30, counted as the verification counts it. rc1:
+17 files, +559/-18.
+
+Not verified here; see verification.md.

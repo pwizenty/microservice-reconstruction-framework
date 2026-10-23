@@ -100,9 +100,16 @@ the authentication half. `ServerEndpoint.clientAuth` carries exactly that.
 |---|---|---|
 | What a client calls, and with which scheme | `ServiceCall`, `ServiceCallEndpoint`, `ServiceCommunicationTransport` | `service/communication/detectors/` |
 | What the callee accepts | `ServerEndpoint` — `port`, `protocol`, `tlsEnabled`, `clientAuth`, per connector | `service/communication/server.py` |
+| What a Node service serves, and how it binds it | `GrpcServer` — `host`, `port`, `transportSecurity`, `clientAuth` | `service/node/`, the transport by name from the sources (`javascript.py`) |
+| The leg a Node service holds to a broker | `MessageQueue` — `broker`, `queue`, `scheme`, `credentialsConfigured`, `transportSecurity` | the same |
 
-Both appear on the microservice in a generated service model, as
-`@…_aspects.ServiceCommunicationTransport` and `@…_aspects.ServerEndpoint`.
+All of them appear on the microservice in a generated service model. **An aspect
+the technology model does not declare is dropped**, silently and by design: a
+reference that does not resolve is worse than a visible gap. The two Node facts
+were reconstructed and dropped exactly that way until 2026-10-21, and Lakeside
+Mutual's Risk Management server stood in the models with no communication fact
+at all — so the detection reported nine findings and said nothing about the two
+channels it had not looked at. A fact is only evidence once both steps carry it.
 
 ### What it does not have
 
@@ -111,9 +118,31 @@ Both appear on the microservice in a generated service model, as
   does not do at all.
 - **Resolved target identity.** Which concrete service a call reaches, through
   the deployment's environment. Backlog A5.
-- **Client certificates and weakened verification.** Backlog A2.
+- **Client certificates and weakened verification** on the Java side. Backlog
+  A2. A Node service's are read: `createSsl` against a CA, and the third
+  argument that makes a client certificate required.
+- **The client half of a gRPC channel.** Backlog A8b. The server half is read;
+  the only caller in this sample is a command line tool that the deployment does
+  not contain, and B2 reconstructs nothing for it.
 - **Several pieces of evidence per fact.** Backlog A7, and the one that needs an
   ADR: `Data.values` is flat, so a fact carries one piece of evidence.
+
+### Where its view ends
+
+Counting services with no communication fact catches a service that was
+reconstructed and left without one. It does not catch a client with no service
+model at all, and Lakeside Mutual has two: the monitoring server, skipped as
+infrastructure, and an NGINX load-balancing demonstration, which MRF does not
+read. Both are real clients of the Customer Core's connector. The detection
+therefore also compares the operation model against the service models and
+reports every deployment node that deploys no reconstructed microservice as a
+*potential unmodelled client* - not as a finding, because nothing there says
+such a node communicates at all.
+
+A channel with only one reconstructed end is the harder case, because nothing
+reports it in either direction: the monitoring server has no service model, so
+breaking its relationship produces no finding and repairing it produces none
+either. `monitoring-regression.md` records that case end to end.
 
 **Measured, and it bounds what any detection can be tested against:** neither
 sample system configures TLS anywhere. Eleven services across Lakeside Mutual

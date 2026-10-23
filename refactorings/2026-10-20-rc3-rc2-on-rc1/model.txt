@@ -1,0 +1,21 @@
+proposal      2026-10-20 rc3-rc2-on-rc1
+cause         broker:activemq:tcp
+smell         Non-Secured Service-to-Service Communications (Ponce et al. 2022, 3.7)
+refactoring   Use Mutual TLS
+skill         resolve-non-secured-communication, as of lemma d9db83bc
+              (copied verbatim as skill.md - LOADED in this run, which is the
+               difference from 2026-10-14-rc2-on-rc1-activemq-broker)
+base          d00f1da  (622632f + root cause 1 resolved)
+
+model         claude-opus-5
+cli           2.1.292 (Claude Code)
+session       7c6f9a7c-f803-4c7b-9c65-f1dbcce878b8
+turns         162
+duration_s    1250
+cost_usd      12.6401
+result        success  is_error=False
+denials       24
+
+One session, no resume. Regenerated so that every proposal in the series was
+produced the same way: the 2026-10-14 combined run had no plugin directory and
+so ran without the skill, which made it unusable as evidence about the skill.
