@@ -1,0 +1,114 @@
+"""Architecture model of a software system's domain.
+
+Includes concepts from Domain Driven Design such as bounded contexts,
+entities and value objects.
+"""
+
+from dataclasses import dataclass, field
+from enum import Enum
+
+from mrf.plugins.common.common_plugin import Data
+
+DDD_ENTITY = "Entity"
+DDD_IDENTIFIER = "Identifier"
+
+UNKNOWN_CONTEXT = "UnknownContext"
+UNKNOWN_TYPE = "UnknownType"
+
+
+class ClassType(Enum):
+    """Enumeration with class types for :class:`ComplexType`."""
+
+    COLLECTION = "COLLECTION"
+    ENUM = "ENUM"
+    DATA_STRUCTURE = "DATA_STRUCTURE"
+    UNSPECIFIED = "UNSPECIFIED"
+
+
+@dataclass
+class ComplexType:
+    """Complex data type of :class:`DataStructure`."""
+
+    name: str
+    qualified_name: str
+    class_type: ClassType
+
+
+@dataclass
+class PrimitiveType:
+    """Simple / primitive data type of :class:`DataStructure`."""
+
+    name: str
+
+
+@dataclass
+class Field:
+    """Data field of a complex type."""
+
+    name: str
+    field_type: PrimitiveType | ComplexType
+    data: list[Data] = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.data = []
+
+
+@dataclass
+class DataStructure:
+    """Data structure for domain concepts, e.g., entities or aggregates."""
+
+    qualified_name: str
+    name: str
+    origin_file: str
+    fields: list[Field] = field(init=False)
+    data: list[Data] = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.data = []
+        self.fields = []
+
+
+@dataclass
+class Enumeration:
+    """Enumeration type for domain information."""
+
+    name: str
+
+
+@dataclass
+class Collection:
+    """Collection type for domain information."""
+
+    qualified_name: str
+    name: str
+    field_type: PrimitiveType | ComplexType
+    data: list[Data] = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.data = []
+
+
+@dataclass
+class Context:
+    """Bounded context of the software system's domain.
+
+    Saves architecture information about the software system's domain and
+    relates to a Bounded Context from Domain Driven Design.
+
+    Attributes:
+         qualified_name (str): Qualified name of the context, e.g. de.fhdo.User
+         name (str): Name of the context, e.g., User
+         origin_file (str): Path to the file the Context was reconstructed from
+         data_structures ([:class:`DataStructure`]): Reconstructed structures
+         enums ([:class:`Enumeration`]): Reconstructed information
+         data ([:class:`Data`]): Meta-data assigned to the context
+    """
+
+    def __init__(self, qualified_name: str, name: str, origin_file: str | None) -> None:
+        self.qualified_name = qualified_name
+        self.name = name
+        self.origin_file = origin_file
+        self.data_structures: list[DataStructure] = []
+        self.enums: list[Enumeration] = []
+        self.collections: list[Collection] = []
+        self.data: list[Data] = []

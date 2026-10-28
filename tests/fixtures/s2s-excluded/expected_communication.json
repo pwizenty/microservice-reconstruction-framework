@@ -1,0 +1,30 @@
+{
+  "Service": {
+    "transport": null,
+    "calls": [
+      {
+        "artifactType": "SOURCE",
+        "file": "src/service/src/main/java/com/example/service/ExternalProxy.java",
+        "line": "12",
+        "property": "exchange.rates.url",
+        "resolvedUrl": "https://api.exchangerate.host",
+        "scheme": "https",
+        "snippet": "@Value(\"${exchange.rates.url}\")",
+        "target": "api.exchangerate.host",
+        "targetKind": "EXTERNAL",
+        "technology": "RestTemplate"
+      }
+    ],
+    "endpoints": [],
+    "channels": [],
+    "server": [
+      {
+        "connector": "server",
+        "port": "8080",
+        "protocol": "http",
+        "tlsEnabled": "false",
+        "valueSource": "src/service/src/main/resources/application.properties"
+      }
+    ]
+  }
+}

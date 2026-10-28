@@ -1,0 +1,157 @@
+{
+  "contexts": [
+    {
+      "collections": [],
+      "data": [],
+      "data_structures": [
+        {
+          "data": [],
+          "fields": [
+            {
+              "data": [],
+              "field_type": {
+                "name": "string"
+              },
+              "name": "customerCoreId"
+            }
+          ],
+          "name": "CustomerId",
+          "origin_file": "src/customer-core/com/example/customercore/domain/CustomerId.java",
+          "qualified_name": "com.example.customercore.CustomerCore.CustomerId"
+        },
+        {
+          "data": [
+            {
+              "name": "Entity",
+              "values": {}
+            }
+          ],
+          "fields": [
+            {
+              "data": [],
+              "field_type": {
+                "name": "string"
+              },
+              "name": "firstname"
+            },
+            {
+              "data": [
+                {
+                  "name": "Identifier",
+                  "values": {}
+                }
+              ],
+              "field_type": {
+                "class_type": "DATA_STRUCTURE",
+                "name": "CustomerId",
+                "qualified_name": "com.example.customercore.domain.CustomerId"
+              },
+              "name": "id"
+            }
+          ],
+          "name": "Customer",
+          "origin_file": "src/customer-core/com/example/customercore/domain/Customer.java",
+          "qualified_name": "com.example.customercore.CustomerCore.Customer"
+        }
+      ],
+      "enums": [],
+      "name": "CustomerCore",
+      "origin_file": "src/customer-core/com/example/customercore/CustomerCoreApplication.java",
+      "qualified_name": "com.example.customercore.CustomerCore"
+    },
+    {
+      "collections": [],
+      "data": [],
+      "data_structures": [
+        {
+          "data": [],
+          "fields": [
+            {
+              "data": [],
+              "field_type": {
+                "name": "string"
+              },
+              "name": "policyManagementId"
+            }
+          ],
+          "name": "CustomerId",
+          "origin_file": "src/policy-management/com/example/policymanagement/domain/CustomerId.java",
+          "qualified_name": "com.example.policymanagement.PolicyManagement.CustomerId"
+        },
+        {
+          "data": [
+            {
+              "name": "Entity",
+              "values": {}
+            }
+          ],
+          "fields": [
+            {
+              "data": [],
+              "field_type": {
+                "name": "string"
+              },
+              "name": "policyType"
+            },
+            {
+              "data": [
+                {
+                  "name": "Identifier",
+                  "values": {}
+                }
+              ],
+              "field_type": {
+                "class_type": "DATA_STRUCTURE",
+                "name": "CustomerId",
+                "qualified_name": "com.example.policymanagement.domain.CustomerId"
+              },
+              "name": "id"
+            }
+          ],
+          "name": "Policy",
+          "origin_file": "src/policy-management/com/example/policymanagement/domain/Policy.java",
+          "qualified_name": "com.example.policymanagement.PolicyManagement.Policy"
+        }
+      ],
+      "enums": [],
+      "name": "PolicyManagement",
+      "origin_file": "src/policy-management/com/example/policymanagement/PolicyManagementApplication.java",
+      "qualified_name": "com.example.policymanagement.PolicyManagement"
+    }
+  ],
+  "microservices": [
+    {
+      "data": [
+        {
+          "name": "public",
+          "values": {}
+        },
+        {
+          "name": "functional",
+          "values": {}
+        }
+      ],
+      "interfaces": [],
+      "name": "CustomerCore",
+      "origin_file": "src/customer-core/com/example/customercore/CustomerCoreApplication.java",
+      "qualified_name": "com.example.customercore.CustomerCore"
+    },
+    {
+      "data": [
+        {
+          "name": "public",
+          "values": {}
+        },
+        {
+          "name": "functional",
+          "values": {}
+        }
+      ],
+      "interfaces": [],
+      "name": "PolicyManagement",
+      "origin_file": "src/policy-management/com/example/policymanagement/PolicyManagementApplication.java",
+      "qualified_name": "com.example.policymanagement.PolicyManagement"
+    }
+  ],
+  "operation": []
+}

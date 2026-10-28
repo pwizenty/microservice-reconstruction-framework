@@ -1,0 +1,110 @@
+{
+  "Backend": {
+    "transport": null,
+    "calls": [],
+    "endpoints": [],
+    "channels": [],
+    "server": [
+      {
+        "connector": "server",
+        "port": "8443",
+        "protocol": "https",
+        "tlsEnabled": "true",
+        "valueSource": "src/backend/src/main/resources/application.properties"
+      }
+    ]
+  },
+  "Gateway": {
+    "transport": "unresolved",
+    "calls": [
+      {
+        "artifactType": "SOURCE",
+        "file": "src/gateway/src/main/java/com/example/gateway/BackendClient.java",
+        "line": "13",
+        "property": "backend.baseURL",
+        "resolvedUrl": "https://backend:8443",
+        "scheme": "https",
+        "snippet": "@FeignClient(name = \"backend\", url = \"${backend.baseURL}\")",
+        "target": "Backend",
+        "targetKind": "SERVICE",
+        "targetQualifiedName": "com.example.backend.Backend",
+        "technology": "Feign"
+      },
+      {
+        "artifactType": "SOURCE",
+        "file": "src/gateway/src/main/java/com/example/gateway/ReportingClient.java",
+        "line": "13",
+        "property": "reporting.baseURL",
+        "scheme": "UNRESOLVED",
+        "snippet": "@FeignClient(name = \"reporting\", url = \"${reporting.baseURL}\")",
+        "target": "Reporting",
+        "targetKind": "SERVICE",
+        "targetQualifiedName": "com.example.reporting.Reporting",
+        "technology": "Feign"
+      }
+    ],
+    "endpoints": [
+      {
+        "artifactType": "SOURCE",
+        "file": "src/gateway/src/main/java/com/example/gateway/BackendClient.java",
+        "line": "16",
+        "method": "getItems",
+        "path": "/api/items",
+        "snippet": "@GetMapping(value = \"/items\")",
+        "target": "Backend",
+        "targetQualifiedName": "com.example.backend.Backend",
+        "technology": "Feign",
+        "verb": "GetMapping"
+      },
+      {
+        "artifactType": "SOURCE",
+        "file": "src/gateway/src/main/java/com/example/gateway/BackendClient.java",
+        "line": "19",
+        "method": "getItem",
+        "path": "/api/items/{id}",
+        "snippet": "@GetMapping(value = \"/items/{id}\")",
+        "target": "Backend",
+        "targetQualifiedName": "com.example.backend.Backend",
+        "technology": "Feign",
+        "verb": "GetMapping"
+      },
+      {
+        "artifactType": "SOURCE",
+        "file": "src/gateway/src/main/java/com/example/gateway/ReportingClient.java",
+        "line": "15",
+        "method": "getReports",
+        "path": "/reports",
+        "snippet": "@GetMapping(value = \"/reports\")",
+        "target": "Reporting",
+        "targetQualifiedName": "com.example.reporting.Reporting",
+        "technology": "Feign",
+        "verb": "GetMapping"
+      }
+    ],
+    "channels": [],
+    "server": [
+      {
+        "connector": "server",
+        "port": "8080",
+        "protocol": "http",
+        "tlsEnabled": "false",
+        "valueSource": "src/gateway/src/main/resources/application.properties"
+      }
+    ]
+  },
+  "Reporting": {
+    "transport": null,
+    "calls": [],
+    "endpoints": [],
+    "channels": [],
+    "server": [
+      {
+        "connector": "server",
+        "port": "8082",
+        "protocol": "http",
+        "tlsEnabled": "false",
+        "valueSource": "src/reporting/src/main/resources/application.properties"
+      }
+    ]
+  }
+}

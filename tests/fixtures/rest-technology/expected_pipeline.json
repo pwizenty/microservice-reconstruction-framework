@@ -1,0 +1,297 @@
+{
+  "microservices": [
+    {
+      "data": [
+        {
+          "name": "public",
+          "values": {}
+        },
+        {
+          "name": "functional",
+          "values": {}
+        }
+      ],
+      "interfaces": [
+        {
+          "data": [
+            {
+              "name": "Endpoint",
+              "values": {
+                "address": "/customers"
+              }
+            }
+          ],
+          "name": "Customer",
+          "operations": [
+            {
+              "data": [
+                {
+                  "name": "GetMapping",
+                  "values": {}
+                }
+              ],
+              "name": "getCustomers",
+              "parameters": [
+                {
+                  "communication_type": "Synchronous",
+                  "data": [
+                    {
+                      "name": "RequestParam",
+                      "values": {
+                        "value": "filter",
+                        "required": "false",
+                        "defaultValue": ""
+                      }
+                    }
+                  ],
+                  "exchange_pattern": "In",
+                  "name": "filter",
+                  "type": {
+                    "name": "String"
+                  }
+                },
+                {
+                  "communication_type": "Synchronous",
+                  "data": [],
+                  "exchange_pattern": "Out",
+                  "name": "String",
+                  "type": {
+                    "name": "String"
+                  }
+                }
+              ]
+            },
+            {
+              "data": [
+                {
+                  "name": "GetMapping",
+                  "values": {}
+                },
+                {
+                  "name": "Endpoint",
+                  "values": {
+                    "address": "/{customerId}"
+                  }
+                }
+              ],
+              "name": "getCustomer",
+              "parameters": [
+                {
+                  "communication_type": "Synchronous",
+                  "data": [
+                    {
+                      "name": "PathVariable",
+                      "values": {}
+                    }
+                  ],
+                  "exchange_pattern": "In",
+                  "name": "customerId",
+                  "type": {
+                    "name": "String"
+                  }
+                },
+                {
+                  "communication_type": "Synchronous",
+                  "data": [],
+                  "exchange_pattern": "Out",
+                  "name": "Customer",
+                  "type": {
+                    "class_type": "DATA_STRUCTURE",
+                    "name": "Customer",
+                    "qualified_name": "com.example.customercore.CustomerCore.Customer"
+                  }
+                }
+              ]
+            },
+            {
+              "data": [
+                {
+                  "name": "PostMapping",
+                  "values": {}
+                }
+              ],
+              "name": "createCustomer",
+              "parameters": [
+                {
+                  "communication_type": "Synchronous",
+                  "data": [
+                    {
+                      "name": "Valid",
+                      "values": {}
+                    },
+                    {
+                      "name": "RequestBody",
+                      "values": {}
+                    }
+                  ],
+                  "exchange_pattern": "In",
+                  "name": "customer",
+                  "type": {
+                    "class_type": "DATA_STRUCTURE",
+                    "name": "Customer",
+                    "qualified_name": "com.example.customercore.CustomerCore.Customer"
+                  }
+                },
+                {
+                  "communication_type": "Synchronous",
+                  "data": [],
+                  "exchange_pattern": "Out",
+                  "name": "Customer",
+                  "type": {
+                    "class_type": "DATA_STRUCTURE",
+                    "name": "Customer",
+                    "qualified_name": "com.example.customercore.CustomerCore.Customer"
+                  }
+                }
+              ]
+            },
+            {
+              "data": [
+                {
+                  "name": "PreAuthorize",
+                  "values": {
+                    "value": "isAuthenticated()"
+                  }
+                },
+                {
+                  "name": "PatchMapping",
+                  "values": {}
+                },
+                {
+                  "name": "Endpoint",
+                  "values": {
+                    "address": "/{customerId}"
+                  }
+                }
+              ],
+              "name": "updateCustomer",
+              "parameters": [
+                {
+                  "communication_type": "Synchronous",
+                  "data": [
+                    {
+                      "name": "PathVariable",
+                      "values": {}
+                    }
+                  ],
+                  "exchange_pattern": "In",
+                  "name": "customerId",
+                  "type": {
+                    "name": "String"
+                  }
+                },
+                {
+                  "communication_type": "Synchronous",
+                  "data": [
+                    {
+                      "name": "RequestBody",
+                      "values": {}
+                    }
+                  ],
+                  "exchange_pattern": "In",
+                  "name": "customer",
+                  "type": {
+                    "class_type": "DATA_STRUCTURE",
+                    "name": "Customer",
+                    "qualified_name": "com.example.customercore.CustomerCore.Customer"
+                  }
+                },
+                {
+                  "communication_type": "Synchronous",
+                  "data": [],
+                  "exchange_pattern": "Out",
+                  "name": "Customer",
+                  "type": {
+                    "class_type": "DATA_STRUCTURE",
+                    "name": "Customer",
+                    "qualified_name": "com.example.customercore.CustomerCore.Customer"
+                  }
+                }
+              ]
+            },
+            {
+              "data": [
+                {
+                  "name": "DeleteMapping",
+                  "values": {}
+                },
+                {
+                  "name": "Endpoint",
+                  "values": {
+                    "address": "/{customerId}"
+                  }
+                }
+              ],
+              "name": "deleteCustomer",
+              "parameters": [
+                {
+                  "communication_type": "Synchronous",
+                  "data": [
+                    {
+                      "name": "PathVariable",
+                      "values": {}
+                    }
+                  ],
+                  "exchange_pattern": "In",
+                  "name": "customerId",
+                  "type": {
+                    "name": "String"
+                  }
+                }
+              ]
+            }
+          ],
+          "qualified_name": "com.example.customercore.CustomerCore.Customer"
+        }
+      ],
+      "name": "CustomerCore",
+      "origin_file": "src/com/example/customercore/CustomerCoreApplication.java",
+      "qualified_name": "com.example.customercore.CustomerCore"
+    }
+  ],
+  "contexts": [
+    {
+      "collections": [],
+      "data": [],
+      "data_structures": [
+        {
+          "data": [
+            {
+              "name": "Entity",
+              "values": {}
+            }
+          ],
+          "fields": [
+            {
+              "data": [
+                {
+                  "name": "Identifier",
+                  "values": {}
+                }
+              ],
+              "field_type": {
+                "name": "string"
+              },
+              "name": "id"
+            },
+            {
+              "data": [],
+              "field_type": {
+                "name": "string"
+              },
+              "name": "name"
+            }
+          ],
+          "name": "Customer",
+          "origin_file": "src/com/example/customercore/domain/Customer.java",
+          "qualified_name": "com.example.customercore.CustomerCore.Customer"
+        }
+      ],
+      "enums": [],
+      "name": "CustomerCore",
+      "origin_file": "src/com/example/customercore/CustomerCoreApplication.java",
+      "qualified_name": "com.example.customercore.CustomerCore"
+    }
+  ],
+  "operation": []
+}

@@ -1,0 +1,17 @@
+proposal      2026-10-14 rc2-on-rc1-activemq-broker
+smell         Non-Secured Service-to-Service Communications (Ponce et al. 2022, 3.7)
+refactoring   Use Mutual TLS
+base          357ca2d + 8a73096 (root cause 1 already resolved)
+skill         NOT LOADED - see skill.md
+
+model         claude-opus-5
+session       12f94ce2-3d9b-4f2b-abbd-891d13e61bb7 (resumed)
+turns         135 + 28 after a usage limit
+duration_s    1089 + 273
+cost_usd      11.89 + 17.15
+result        first run is_error=True (session limit, truncated)
+              resumed run is_error=False
+
+Produced in two sessions. The first was cut off by an account usage limit
+after substantial edits but before it built anything or wrote its notes, so it
+was resumed rather than discarded. A proposal is not an atomic operation.

@@ -1,0 +1,32 @@
+proposal      2026-10-21 rc4-grpc-riskmanagement
+purpose       The fourth and last root cause of this system, and the one the
+              guided chain left: the gRPC endpoint of the Risk Management
+              server. No earlier proposal could have addressed it - when rc1,
+              rc2 and rc3 were generated the GrpcServer aspect did not exist,
+              so the channel produced no finding and no cause.
+smell         Non-Secured Service-to-Service Communications (Ponce et al. 2022, 3.7)
+refactoring   Use Mutual TLS
+cause         endpoint:RiskManagement
+skill         resolve-non-secured-communication (loaded, copied verbatim as skill.md)
+              A gRPC recipe was added to the skill first, references/grpc-node.md,
+              so this cause was guided as the other three were. Every earlier
+              cause had a matching recipe; without one this run would have
+              measured something else.
+base          aed2cfb  (622632f + rc1 + rc2, the tree with exactly one finding left)
+note          The caller is risk-management-client, a command line tool that
+              docker-compose.yml does not deploy. The start gate therefore
+              exercises the server's binding and the consumer's queue, never
+              the gRPC call itself: the build and the human review carry that
+              half, and the notes say so.
+
+model         claude-opus-5
+cli           2.1.292 (Claude Code)
+session       edaed7f0-c753-4661-87b6-9ed4c0cdc28d
+turns         90
+duration_s    503
+cost_usd      4.1235
+output_tokens 31566
+result        success is_error=False
+
+mrf           0c265cbc55a8
+lemma         9317076833f5

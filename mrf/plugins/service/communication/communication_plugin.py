@@ -1,0 +1,558 @@
+"""Plugin reconstructing how a service calls the other services of a system.
+
+Reads the client technologies of a service for the addresses they call, and
+reports per service which transport those calls use. The facts are meta-data on
+the reconstructed microservices, see ADR-0009.
+
+The plugin collects facts and makes no judgement about them. Whether a link is
+the security smell *Non-Secured Service-to-Service Communications* additionally
+depends on what the callee accepts and on whether a service mesh protects the
+channel, neither of which is reconstructed here; the decision belongs to the
+LEMMA validation.
+"""
+
+import logging
+from pathlib import PurePath
+
+from mrf.modules.service import Microservice
+from mrf.plugins.common.common_plugin import Data, JavaClassArtifact
+from mrf.plugins.reconstruction_plugin import Plugin
+from mrf.plugins.service.communication.broker import Broker, broker_of
+from mrf.plugins.service.communication.configuration import (
+    ServiceConfiguration,
+    module_of,
+    read_configurations,
+)
+from mrf.plugins.service.communication.detectors import (
+    DETECTORS,
+    MESSAGING_DETECTORS,
+    DetectionContext,
+    MessageChannel,
+    ServiceCall,
+)
+from mrf.plugins.service.communication.server import ServerEndpoint, server_endpoints
+from mrf.utilities.command_line import SourceFile
+from mrf.utilities.communication import (
+    ARTIFACT_TYPE,
+    BROKER,
+    BROKER_ADDRESS,
+    CLIENT_AUTH,
+    CONNECTOR,
+    DEFAULTED,
+    FILE,
+    LINE,
+    LOCAL_HOSTS,
+    MESSAGE_CHANNEL,
+    METHOD,
+    PATH,
+    PORT,
+    PROFILE,
+    PROPERTY,
+    PROTOCOL,
+    QUEUE,
+    RESOLVED_URL,
+    ROLE,
+    ROLE_CONSUMER,
+    ROLE_PRODUCER,
+    SCHEME,
+    SERVER_ENDPOINT,
+    SERVICE_CALL,
+    SERVICE_CALL_ENDPOINT,
+    SERVICE_COMMUNICATION_TRANSPORT,
+    SNIPPET,
+    TARGET,
+    TARGET_KIND,
+    TARGET_QUALIFIED_NAME,
+    TECHNOLOGY,
+    TEST_CLASS_SUFFIXES,
+    TEST_PATH_PARTS,
+    TLS_ENABLED,
+    TRANSPORT,
+    VALUE_SOURCE,
+    VERB,
+    Scheme,
+    TargetKind,
+    Transport,
+)
+from mrf.utilities.java_utils import get_class_from_tree, get_class_name, load_classes
+from mrf.utilities.node import MESSAGE_QUEUE
+
+logger = logging.getLogger(__name__)
+
+
+class CommunicationPlugin(Plugin):
+    """Reconstructs the outgoing calls of the services of a system."""
+
+    def __init__(self) -> None:
+        self.java_classes: list[JavaClassArtifact] = []
+        self.configurations: dict[str, ServiceConfiguration] = {}
+        # Calls that were found, by the module of the calling service.
+        self.calls: dict[str, list[ServiceCall]] = {}
+        # Queues a service produces to or consumes from, by its module.
+        self.channels: dict[str, list[MessageChannel]] = {}
+
+    def file_types(self) -> list[str]:
+        """Return the file suffixes this plugin analyses.
+
+        Returns:
+            [str]: Java sources, and the configuration a placeholder is
+            resolved against
+        """
+        return [".java", ".properties", ".yml", ".yaml"]
+
+    def execute_reconstruction(
+        self, source_files: list[SourceFile]
+    ) -> dict[str, list[ServiceCall]]:
+        """Reconstruct the calls the analysed system's services make.
+
+        Which of the targets are services of the system is not decided here:
+        that needs the reconstructed microservices, so call :meth:`assign_to`
+        with them afterwards.
+
+        Args:
+            source_files ([SourceFile]): Source files of the analysed system
+
+        Returns:
+            dict[str, [ServiceCall]]: The calls that were found, by the module
+            directory of the calling service
+        """
+        self.configurations = read_configurations(source_files)
+        self.java_classes.extend(
+            load_classes(self.__without_test_code(source_files), [".java"])
+        )
+
+        for java_class in self.java_classes:
+            module = module_of(java_class.path)
+            if module is None:
+                continue
+            context = DetectionContext(
+                path=java_class.path,
+                lines=(java_class.tree and []) or [],
+                configuration=self.configurations.get(module),
+            )
+            context.lines = self.__lines_of(java_class.path, source_files)
+            clazz = get_class_from_tree(java_class.tree)
+            if self.__is_test_class(get_class_name(clazz)):
+                continue
+            for detector in DETECTORS:
+                for call in detector.detect(clazz, java_class.tree, context):
+                    self.calls.setdefault(module, []).append(call)
+            for messaging in MESSAGING_DETECTORS:
+                for channel in messaging.detect(clazz, java_class.tree, context):
+                    self.channels.setdefault(module, []).append(channel)
+
+        return self.calls
+
+    def assign_to(self, microservices: list[Microservice]) -> list[Microservice]:
+        """Attach the reconstructed calls to the microservices that make them.
+
+        A microservice belongs to the module the call was found in. Each call
+        becomes one meta-data entry, and the transport of the calls to other
+        services of the system becomes one more, which the LEMMA side turns
+        into a service aspect.
+
+        Args:
+            microservices ([Microservice]): Reconstructed microservices
+
+        Returns:
+            [Microservice]: The microservices, with their calls assigned
+        """
+        if not microservices:
+            logger.warning(
+                "No microservice was reconstructed, so no call can be assigned "
+                "to one. The communication phase needs the service phase; run "
+                "the Spring plugin alongside it."
+            )
+            return microservices
+
+        targets = self.__known_targets(microservices)
+        peers = self.__peers_by_queue(microservices)
+        for microservice in microservices:
+            module = module_of(microservice.origin_file)
+            if module is None:
+                continue
+
+            # Before the calls, and not inside the guard below: a service that
+            # calls nothing still answers on a port, and whether that port uses
+            # TLS is the other half of the smell. CustomerCore of Lakeside
+            # Mutual is exactly that service.
+            microservice.data.extend(self.__to_server_data(module))
+            microservice.data.extend(
+                self.__to_channel_data(module, microservice, peers)
+            )
+
+            calls = self.__deduplicate(self.calls.get(module, []))
+            if not calls:
+                continue
+
+            internal: list[Scheme] = []
+            for call in calls:
+                kind, target, called = self.__resolve_target(call, targets)
+                microservice.data.append(self.__to_data(call, kind, target, called))
+                if kind is not TargetKind.EXTERNAL:
+                    internal.append(call.scheme)
+                    microservice.data.extend(
+                        self.__to_endpoint_data(call, target, called)
+                    )
+
+            if internal:
+                transport = Data(SERVICE_COMMUNICATION_TRANSPORT)
+                transport.values = {TRANSPORT: self.__transport(internal).value}
+                microservice.data.append(transport)
+
+        return microservices
+
+    def __to_server_data(self, module: str) -> list[Data]:
+        """The ports a service answers on, as one meta-data entry each.
+
+        A module with no configuration at all yields nothing rather than
+        Spring's default port: the service may not be a Spring service, and
+        claiming a port it was never configured with would be an invention.
+
+        Args:
+            module (str): Module directory of the service
+
+        Returns:
+            [Data]: One entry per connector
+        """
+        configuration = self.configurations.get(module)
+        if configuration is None:
+            return []
+        return [
+            self.__from_endpoint(endpoint)
+            for endpoint in server_endpoints(configuration)
+        ]
+
+    def __from_endpoint(self, endpoint: ServerEndpoint) -> Data:
+        """One connector as meta-data.
+
+        ``tlsEnabled`` is a string because the Mongo seam carries a flat
+        ``Map<String, String>`` (ADR-0009), and the LEMMA side turns the text
+        back into a boolean where a technology model asks for one.
+        """
+        data = Data(SERVER_ENDPOINT)
+        values = {
+            CONNECTOR: endpoint.connector,
+            PORT: endpoint.port,
+            PROTOCOL: endpoint.protocol,
+            TLS_ENABLED: str(endpoint.tls_enabled).lower(),
+        }
+        if endpoint.client_auth is not None:
+            values[CLIENT_AUTH] = endpoint.client_auth
+        if endpoint.value_source is not None:
+            values[VALUE_SOURCE] = endpoint.value_source
+        data.values = values
+        return data
+
+    def __to_channel_data(
+        self,
+        module: str,
+        microservice: Microservice,
+        peers: dict[str, dict[str, list[Microservice]]],
+    ) -> list[Data]:
+        """The queues a service uses, as one meta-data entry each.
+
+        A producer is paired with every service that consumes the same queue.
+        An unpaired channel keeps its queue and loses only its target: a queue
+        nothing of this system publishes to, or consumes from, is a fact about
+        the system rather than nothing - the message may come from outside it,
+        or the other end may be unimplemented.
+
+        Args:
+            module (str): Module directory of the service
+            microservice (Microservice): The service itself
+            peers (dict[str, dict[str, [Microservice]]]): Services by the queue
+                they use and the role they use it in
+
+        Returns:
+            [Data]: One entry per channel, one per peer where several
+        """
+        channels = self.channels.get(module, [])
+        if not channels:
+            return []
+
+        broker = broker_of(self.configurations.get(module), self.configurations)
+        entries: list[Data] = []
+        for channel in self.__deduplicate_channels(channels):
+            # The peer of a producer is whoever consumes the queue, and the
+            # peer of a consumer is whoever produces to it. Resolving only one
+            # direction reported the same channel as paired from one end and
+            # unpaired from the other.
+            opposite = ROLE_CONSUMER if channel.role == ROLE_PRODUCER else ROLE_PRODUCER
+            targets = [
+                peer
+                for peer in peers.get(channel.queue, {}).get(opposite, [])
+                if peer is not microservice
+            ]
+            if targets:
+                entries.extend(
+                    self.__from_channel(channel, broker, peer.name) for peer in targets
+                )
+            else:
+                entries.append(self.__from_channel(channel, broker, None))
+        return entries
+
+    def __from_channel(
+        self, channel: MessageChannel, broker: Broker, target: str | None
+    ) -> Data:
+        """One channel as meta-data."""
+        data = Data(MESSAGE_CHANNEL)
+        values = {
+            ROLE: channel.role,
+            QUEUE: channel.queue,
+            BROKER: broker.name,
+            SCHEME: broker.scheme,
+            TRANSPORT: broker.transport.value,
+            BROKER_ADDRESS: broker.url,
+            TECHNOLOGY: channel.technology,
+            FILE: channel.evidence.file,
+            LINE: str(channel.evidence.line),
+        }
+        if target is not None:
+            values[TARGET] = target
+        if broker.defaulted:
+            values[DEFAULTED] = "true"
+        if channel.property_name is not None:
+            values[PROPERTY] = channel.property_name
+        data.values = values
+        return data
+
+    def __peers_by_queue(
+        self, microservices: list[Microservice]
+    ) -> dict[str, dict[str, list[Microservice]]]:
+        """Which services use which queue, and in which role.
+
+        Read from the channels this plugin found and from the queues another
+        plugin already reported: the Node plugin attaches a ``MessageQueue`` to
+        the service it analysed, and the handler runs its ``assign_to`` before
+        this one's - which is what lets a Java producer pair with a consumer
+        written in another language.
+        """
+        peers: dict[str, dict[str, list[Microservice]]] = {}
+
+        def record(queue: str, role: str, microservice: Microservice) -> None:
+            roles = peers.setdefault(queue, {})
+            roles.setdefault(role, []).append(microservice)
+
+        for microservice in microservices:
+            module = module_of(microservice.origin_file)
+            if module is not None:
+                for channel in self.channels.get(module, []):
+                    if channel.resolved:
+                        record(channel.queue, channel.role, microservice)
+            for data in microservice.data:
+                if data.name != MESSAGE_QUEUE:
+                    continue
+                queue = data.values.get(QUEUE)
+                if queue:
+                    # A MessageQueue states a queue the service uses without
+                    # saying in which role, and every one seen so far is a
+                    # consumer. Recorded as one rather than as both, so a
+                    # producer does not pair with itself.
+                    record(queue, ROLE_CONSUMER, microservice)
+        return peers
+
+    def __deduplicate_channels(
+        self, channels: list[MessageChannel]
+    ) -> list[MessageChannel]:
+        """One channel per role and queue, keeping the first evidence.
+
+        A service may send to the same queue from several methods; that is one
+        channel, reported once.
+        """
+        seen: set[tuple[str, str]] = set()
+        unique: list[MessageChannel] = []
+        for channel in channels:
+            key = (channel.role, channel.queue)
+            if key not in seen:
+                seen.add(key)
+                unique.append(channel)
+        return unique
+
+    def __known_targets(
+        self, microservices: list[Microservice]
+    ) -> dict[str, Microservice]:
+        """Collect the names and ports the system's own services answer under.
+
+        A client addresses a service by its name - a Compose service name, an
+        application name or a Eureka service id - or, outside a container, as a
+        port of the local machine. Both are collected so a target can be told
+        from a third party.
+        """
+        targets: dict[str, Microservice] = {}
+        for microservice in microservices:
+            module = module_of(microservice.origin_file)
+            targets[self.__normalise(microservice.name)] = microservice
+            configuration = self.configurations.get(module or "")
+            if configuration is None:
+                continue
+            if configuration.application_name is not None:
+                targets[self.__normalise(configuration.application_name)] = microservice
+            if configuration.server_port is not None:
+                targets[f"port:{configuration.server_port}"] = microservice
+        return targets
+
+    def __resolve_target(
+        self, call: ServiceCall, targets: dict[str, Microservice]
+    ) -> tuple[TargetKind, str, Microservice | None]:
+        """Decide what a call addresses, and name it.
+
+        A target that is one of the system's own services is reported under the
+        name the reconstruction knows it by, so a consumer need not match
+        spellings a second time. The address the sources state stays in the
+        ``resolvedUrl`` of the fact and in its evidence.
+
+        Args:
+            call: The reconstructed call
+            targets: Names and ports the system's own services answer under
+
+        Returns:
+            The kind of the target, the name to report it under, and the
+            microservice it is, when it is one of the system's own
+        """
+        known = targets.get(self.__normalise(call.target))
+        if known is not None:
+            return TargetKind.SERVICE, known.name, known
+
+        if call.target.lower() in LOCAL_HOSTS:
+            # The service addresses the machine itself, as Lakeside Mutual's
+            # services do outside a container. Only the port says which service
+            # answers there.
+            if call.port is not None:
+                answering = targets.get(f"port:{call.port}")
+                if answering is not None:
+                    return TargetKind.SERVICE, answering.name, answering
+            return TargetKind.EXTERNAL, self.__local_name(call), None
+
+        return TargetKind.EXTERNAL, call.target, None
+
+    def __to_data(
+        self,
+        call: ServiceCall,
+        kind: TargetKind,
+        target: str,
+        called: Microservice | None,
+    ) -> Data:
+        values = {
+            TARGET: target,
+            TARGET_KIND: kind.value,
+            SCHEME: call.scheme.value,
+            TECHNOLOGY: call.technology,
+            FILE: call.evidence.file,
+            LINE: str(call.evidence.line),
+            ARTIFACT_TYPE: call.evidence.artifact_type.value,
+            SNIPPET: call.evidence.snippet,
+        }
+        if call.property_name is not None:
+            values[PROPERTY] = call.property_name
+        if call.resolved_url is not None:
+            values[RESOLVED_URL] = call.resolved_url
+        if call.profile is not None:
+            values[PROFILE] = call.profile
+        if called is not None:
+            # The qualified name, because a reference to the callee in a LEMMA
+            # model is qualified and the generator sees one service at a time.
+            values[TARGET_QUALIFIED_NAME] = called.qualified_name
+
+        data = Data(SERVICE_CALL)
+        data.values = values
+        return data
+
+    def __to_endpoint_data(
+        self, call: ServiceCall, target: str, called: Microservice | None
+    ) -> list[Data]:
+        """Report the endpoints of the callee a client declares it addresses.
+
+        Only for a target that is a service of the system: an endpoint of a third
+        party is of no use to a consumer that wants to know what the system
+        depends on, and nothing reconstructed describes it.
+        """
+        if called is None:
+            return []
+
+        data: list[Data] = []
+        for endpoint in call.endpoints:
+            entry = Data(SERVICE_CALL_ENDPOINT)
+            entry.values = {
+                TARGET: target,
+                TARGET_QUALIFIED_NAME: called.qualified_name,
+                VERB: endpoint.verb,
+                PATH: endpoint.path,
+                METHOD: endpoint.method,
+                TECHNOLOGY: call.technology,
+                FILE: endpoint.evidence.file,
+                LINE: str(endpoint.evidence.line),
+                ARTIFACT_TYPE: endpoint.evidence.artifact_type.value,
+                SNIPPET: endpoint.evidence.snippet,
+            }
+            data.append(entry)
+        return data
+
+    def __local_name(self, call: ServiceCall) -> str:
+        """Name a local address no known service answers, by its port."""
+        if call.port is not None:
+            return f"{call.target}:{call.port}"
+        return call.target
+
+    def __transport(self, schemes: list[Scheme]) -> Transport:
+        """Aggregate the schemes of a service's internal calls.
+
+        An aggregation, not a judgement: ``MIXED`` and ``UNRESOLVED`` say what
+        was found where a single value would have to be invented.
+        """
+        distinct = set(schemes)
+        if Scheme.HTTP in distinct and Scheme.HTTPS in distinct:
+            return Transport.MIXED
+        if Scheme.HTTP in distinct:
+            # A plaintext call stays the reported transport even beside a call
+            # whose own transport could not be determined.
+            return Transport.PLAINTEXT
+        if Scheme.UNRESOLVED in distinct:
+            # Not TLS: one call of unknown transport is enough to make the
+            # transport of the service unknown, and reporting it as encrypted
+            # would claim something the sources do not state.
+            return Transport.UNRESOLVED
+        return Transport.TLS
+
+    def __deduplicate(self, calls: list[ServiceCall]) -> list[ServiceCall]:
+        """Keep one call per address, and sort them so a run is repeatable."""
+        unique: dict[tuple[str, str, str | None, str | None], ServiceCall] = {}
+        for call in sorted(
+            calls, key=lambda c: (c.evidence.file, c.evidence.line, c.target)
+        ):
+            key = (
+                call.target,
+                call.scheme.value,
+                call.resolved_url,
+                call.property_name,
+            )
+            unique.setdefault(key, call)
+        return sorted(
+            unique.values(),
+            key=lambda c: (c.target, c.technology, c.evidence.file, c.evidence.line),
+        )
+
+    def __without_test_code(self, source_files: list[SourceFile]) -> list[SourceFile]:
+        return [f for f in source_files if not self.__is_test_path(f.path)]
+
+    def __is_test_path(self, path: str) -> bool:
+        posix = PurePath(path).as_posix()
+        return any(part in posix for part in TEST_PATH_PARTS)
+
+    def __is_test_class(self, name: str) -> bool:
+        return any(name.endswith(suffix) for suffix in TEST_CLASS_SUFFIXES)
+
+    def __lines_of(self, path: str, source_files: list[SourceFile]) -> list[str]:
+        source_file = next((f for f in source_files if f.path == path), None)
+        if source_file is None or source_file.file is None:
+            return []
+        return source_file.file.splitlines()
+
+    def __normalise(self, name: str) -> str:
+        """Reduce a name to what a comparison can rely on.
+
+        ``customer-core``, ``CustomerCore`` and ``customercore`` are the same
+        service under three spellings, and a client uses whichever the
+        configuration gives it.
+        """
+        return "".join(c for c in name.lower() if c.isalnum())

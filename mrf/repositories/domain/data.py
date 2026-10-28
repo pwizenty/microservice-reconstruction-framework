@@ -1,19 +1,29 @@
+"""Persistence format for reconstructed domain data.
+
+Transforms the reconstructed architecture information from the intermediate
+data format, which carries additional information needed during the
+reconstruction process such as file paths, into a format suited for
+persistence.
+"""
+
 from dataclasses import dataclass, field
 from enum import Enum
 
-from mrf.plugins.common.common_plugin import Data
-from mrf.plugins.data.domain_data import Context, DataStructure, Field, \
-    PrimitiveType, ComplexType, ClassType
+from mrf.modules.domain_data import (
+    ClassType,
+    Collection,
+    ComplexType,
+    Context,
+    DataStructure,
+    Field,
+    PrimitiveType,
+)
+from mrf.repositories.common import RData, to_rdata
 
 
-@dataclass
-class RData:
-    name: str
-    values = dict()
-
-
-@dataclass
 class RClassType(Enum):
+    """Class types of reconstructed elements."""
+
     COLLECTION = "COLLECTION"
     ENUM = "ENUM"
     DATA_STRUCTURE = "DATA_STRUCTURE"
@@ -22,11 +32,22 @@ class RClassType(Enum):
 
 @dataclass
 class RPrimitiveType:
+    """Reconstructed primitive type, e.g., ``int``."""
+
     name: str
 
 
 @dataclass
 class RComplexType:
+    """Name in information of the reconstructed complex type.
+
+    Attributes:
+        name (str): simple name of the complex type, e.g., User
+        qualified_name (str): qualified name of the complex type, e.g,
+            de.fhdo.User
+        class_type (str): class type of the type, e.g., collection or structure
+    """
+
     name: str
     qualified_name: str
     class_type: str
@@ -34,9 +55,21 @@ class RComplexType:
 
 @dataclass
 class RField:
+    """Field of a data structure.
+
+    Note that the field should only have either a complex or a primitive field
+    type.
+
+    Attributes:
+        name (str): Name of the complex field type
+        primitive_field_type (RPrimitiveType): Primitive type name of the field
+        complex_field_type (RComplexType): Complex type name of the field
+        data ([RData]): Meta-data information of the field
+    """
+
     name: str
-    primitive_field_type: RPrimitiveType
-    complex_field_type: RComplexType
+    primitive_field_type: RPrimitiveType | None
+    complex_field_type: RComplexType | None
     data: list[RData] = field(init=False)
 
     def __post_init__(self):
@@ -45,6 +78,15 @@ class RField:
 
 @dataclass
 class RDataStructure:
+    """Class for reconstructed data structures.
+
+    Attributes:
+        name (str): Name of the data structure, e.g., User
+        qualified_name (str): Qualified name, e.g., de.fhdo.User
+        data ([RData]): Meta-data about the data structure
+        fields: ([RField]): Attributes of the data structure
+    """
+
     name: str
     qualified_name: str
     data: list[RData] = field(init=False)
@@ -56,25 +98,74 @@ class RDataStructure:
 
 
 @dataclass
+class RCollection:
+    """Class for reconstructed collections.
+
+    Attributes:
+        name (str): Name of the data structure, e.g., User
+        qualified_name (str): Qualified name, e.g., de.fhdo.User
+        data ([RData]): Meta-data about the data structure
+        fields: ([RField]): Attributes of the data structure
+    """
+
+    name: str
+    qualified_name: str
+    primitive_field_type: RPrimitiveType | None
+    complex_field_type: RComplexType | None
+    data: list[RData] = field(init=False)
+
+    def __post_init__(self):
+        self.data = []
+        self.fields = []
+
+
+@dataclass
 class REnumeration:
+    """Reconstructed enumeration with a specific name.
+
+    Attributes:
+        name (str): Name of the enumeration
+    """
+
     name: str
 
 
 @dataclass
 class RContext:
+    """Class for information about the reconstructed bounded contexts.
+
+    Attributes:
+        name (str): Name of the bounded context, e.g., CustomerCore
+        qualified_name (str): Qualified name, e.g., de.fhdo.CustomerCore
+        data_structures ([RDataStructure]): Data structures in the context
+        enums ([REnumeration]]): Enumerations identified in the context
+        data (data): Meta-data for the bounded context
+    """
+
     name: str
     qualified_name: str
     data_structures: list[RDataStructure] = field(init=False)
+    collections: list[RCollection] = field(init=False)
     enums: list[REnumeration] = field(init=False)
     data: list[RData] = field(init=False)
 
     def __post_init__(self):
         self.data_structures = []
+        self.collections = []
         self.enums = []
         self.data = []
 
 
-def transform_context_for_database(context: Context):
+def transform_context_for_database(context: Context) -> RContext:
+    """Transform a :class: `Context` into a :class: `RContext`.
+
+    Args:
+        context (Context): Context reconstructed from architecture information
+
+    Returns:
+        r_context (RContext): Representation of a reconstructed context for
+            persistence purpose
+    """
     r_context = __to_rcontext(context)
     return r_context
 
@@ -84,15 +175,19 @@ def __to_rcontext(context: Context):
 
     for d in context.data_structures:
         r_context.data_structures.append(__to_rdata_structure(d))
+
+    for c in context.collections:
+        r_context.collections.append(__to_rcollection(c))
     return r_context
 
 
 def __to_rdata_structure(data_structure: DataStructure):
-    r_data_structure = RDataStructure(data_structure.name,
-                                      data_structure.qualified_name)
+    r_data_structure = RDataStructure(
+        data_structure.name, data_structure.qualified_name
+    )
 
     for d in data_structure.data:
-        r_data_structure.data.append(__to_rdata(d))
+        r_data_structure.data.append(to_rdata(d))
 
     for f in data_structure.fields:
         r_data_structure.fields.append(__to_rfield(f))
@@ -100,31 +195,30 @@ def __to_rdata_structure(data_structure: DataStructure):
     return r_data_structure
 
 
-def __to_rdata(data: Data):
-    r_data = RData(data.name)
-    r_data.values = data.values
-    return r_data
+def __to_rcollection(collection: Collection) -> RCollection:
+    if isinstance(collection.field_type, PrimitiveType):
+        r_type = __to_rprimitive_type(collection.field_type)
+        return RCollection(collection.name, collection.qualified_name, r_type, None)
+    else:
+        r_type = __to_rcomplex_type(collection.field_type)
+        return RCollection(collection.name, collection.qualified_name, None, r_type)
 
 
 def __to_rfield(field_: Field):
-    primitive_field_type = RPrimitiveType
-    complex_field_type = RComplexType
+    primitive_field_type = None
+    complex_field_type = None
     # Check for field types (primitive of complex)
     if isinstance(field_.field_type, PrimitiveType):
         primitive_field_type = __to_rprimitive_type(field_.field_type)
-        complex_field_type = None
     elif isinstance(field_.field_type, ComplexType):
         complex_field_type = __to_rcomplex_type(field_.field_type)
-        primitive_field_type = None
 
     r_field = RField(field_.name, primitive_field_type, complex_field_type)
 
     # Handle field data information
     for d in field_.data:
-        rdata = __to_rdata(d)
+        rdata = to_rdata(d)
         r_field.data.append(rdata)
-
-    # TODO: Add Handling of all Data
     return r_field
 
 
@@ -133,10 +227,11 @@ def __to_rprimitive_type(primitive_field_type: PrimitiveType):
     return r_primitive_type
 
 
-def __to_rcomplex_type(complex_field_type: ComplexType):
+def __to_rcomplex_type(complex_field_type: ComplexType) -> RComplexType:
     class_type = __to_rclass_type(complex_field_type.class_type)
-    r_complex_type = RComplexType(complex_field_type.name,
-                                  complex_field_type.qualified_name, class_type)
+    r_complex_type = RComplexType(
+        complex_field_type.name, complex_field_type.qualified_name, class_type
+    )
     return r_complex_type
 
 

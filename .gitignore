@@ -338,3 +338,6 @@ $RECYCLE.BIN/
 # End of https://www.toptal.com/developers/gitignore/api/pycharm+all,macos,windows,linux,python
 
 .idea/
+
+# Machine-local Claude Code settings (absolute paths, per-developer)
+.claude/settings.local.json

@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package com.example.types;
+
+import "google/protobuf/timestamp.proto";
+option java_package = "com.example.generated";
+
+// Commented out, and must not be reconstructed.
+// service Ghost { rpc Nope (Everything) returns (Everything); }
+/* message AlsoGhost { string x = 1; } */
+
+service TypeProbe {
+  rpc Probe (Everything) returns (Everything) {
+    option deadline = 5;
+  }
+}
+
+message Everything {
+  option deprecated = true;
+  reserved 50, 60 to 70;
+
+  double a_double = 1;
+  float a_float = 2;
+  int32 an_int32 = 3;
+  int64 an_int64 = 4;
+  uint32 a_uint32 = 5;
+  uint64 a_uint64 = 6;
+  sint32 a_sint32 = 7;
+  sint64 a_sint64 = 8;
+  fixed32 a_fixed32 = 9;
+  fixed64 a_fixed64 = 10;
+  sfixed32 a_sfixed32 = 11;
+  sfixed64 a_sfixed64 = 12;
+  bool a_bool = 13;
+  string a_string = 14 [deprecated = true];
+  bytes a_bytes = 15;
+
+  repeated string many_strings = 16;
+  optional bool maybe = 17;
+  map<string, Nested> by_name = 18;
+
+  // A type of an imported file, which this reconstruction has no structure for.
+  google.protobuf.Timestamp created_at = 19;
+
+  oneof either {
+    string text = 20;
+    Nested structure = 21;
+  }
+
+  message Nested {
+    string value = 1;
+  }
+}

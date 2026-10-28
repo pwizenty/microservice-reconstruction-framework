@@ -1,1 +1,0 @@
-# Beginning of the Documentation of the Microservice Reconstruction Framework

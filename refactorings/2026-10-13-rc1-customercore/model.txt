@@ -1,0 +1,17 @@
+proposal      2026-10-13 rc1-customercore
+cause         endpoint:CustomerCore
+smell         Non-Secured Service-to-Service Communications (Ponce et al. 2022, 3.7)
+refactoring   Use Mutual TLS
+skill         resolve-non-secured-communication (copied verbatim as skill.md)
+
+model         claude-opus-5
+cli           2.1.286 (Claude Code)
+session       ed7e5a36-36c7-4269-8bff-5eb54353b92e
+turns         144
+duration_s    1495
+cost_usd      10.62
+result        success  is_error=False
+
+mrf           1354729ba313
+lemma         69716c315eb0
+target        357ca2db7e6b  (LakesideMutual)

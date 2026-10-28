@@ -1,31 +1,157 @@
-from mrf.plugins.data.domain_data import Context
+"""Handling of the reconstruction process.
+
+Covers the management of source code files and the order of the reconstruction
+phases.
+"""
+
+import logging
+from typing import ClassVar
+
+from mrf.modules.domain_data import Context
+from mrf.modules.operation import OperationNode
+from mrf.modules.service import Microservice
 from mrf.plugins.data.java.java_plugin import JavaPlugin
+from mrf.plugins.data.protobuf.protobuf_plugin import ProtobufDataPlugin
+from mrf.plugins.operation.docker.docker_plugin import DockerPlugin
 from mrf.plugins.reconstruction_plugin import PluginType
-from mrf.repositories.MongoRepository import save_contexts
+from mrf.plugins.service.communication.communication_plugin import (
+    CommunicationPlugin,
+)
+from mrf.plugins.service.node.node_plugin import NodePlugin
+from mrf.plugins.service.protobuf.protobuf_plugin import ProtobufServicePlugin
+from mrf.plugins.service.spring.spring_plugin import SpringPlugin
+from mrf.repositories.mongo_repository import (
+    save_contexts,
+    save_microservices,
+    save_operation_nodes,
+)
 from mrf.utilities.command_line import SourceFile
 
+logger = logging.getLogger(__name__)
 
-class ReconstructionHandler(object):
-    _instance = None
-    source_files = [SourceFile]
-    reconstructed_data: list[Context] = []
-    plugins = []
 
-    def __new__(cls, source_files, plugins):
+class ReconstructionHandler:
+    """Class for handling the reconstruction process."""
+
+    # NOTE: These are deliberately class level because the handler is a
+    # singleton. State therefore leaks between runs and tests; see the known
+    # issues in CLAUDE.md. Annotated as ClassVar to describe the current
+    # behaviour, not to endorse it.
+    _instance: ClassVar["ReconstructionHandler | None"] = None
+    source_files: ClassVar[list[SourceFile]] = []
+    reconstructed_data: ClassVar[list[Context]] = []
+    reconstructed_service: ClassVar[list[Microservice]] = []
+    reconstructed_operation: ClassVar[list[OperationNode]] = []
+    plugins: ClassVar[list[PluginType]] = []
+
+    def __new__(
+        cls, source_files: list[SourceFile], plugins: list[PluginType]
+    ) -> "ReconstructionHandler":
+        """Return the singleton handler, updating it with the current run's input.
+
+        Args:
+            source_files ([SourceFile]): Source files of the analysed system
+            plugins ([PluginType]): Plugins selected for the reconstruction
+
+        Returns:
+            ReconstructionHandler: The shared handler instance
+        """
         if cls._instance is None:
-            print("Create Reconstruction Handler")
-            cls._instance = super(ReconstructionHandler, cls).__new__(cls)
+            logger.debug("Create Reconstruction Handler")
+            cls._instance = super().__new__(cls)
         cls.source_files = source_files
         cls.plugins = plugins
         return cls._instance
 
-    def reconstruct_start(self):
+    def reconstruct_start(self) -> None:
+        """Start the phases of the reconstruction process.
+
+        The phases run in the order domain data, microservices and operation.
+        """
         self.__reconstruct_data(self.source_files)
+        self.__reconstruct_service(self.source_files)
+        self.__reconstruct_operation(self.source_files)
 
-    def __reconstruct_data(self, source_files: list[SourceFile]):
-        if PluginType.Java in self.plugins:
+    def __reconstruct_data(self, source_files: list[SourceFile]) -> None:
+        if PluginType.JAVA in self.plugins:
             self.reconstructed_data.extend(
-                JavaPlugin().execute_reconstruction(source_files))
+                JavaPlugin().execute_reconstruction(source_files)
+            )
+        if PluginType.PROTOBUF in self.plugins:
+            # A proto file describes a service and the data it exchanges, so one
+            # selection contributes to this phase and to the service phase.
+            self.reconstructed_data.extend(
+                ProtobufDataPlugin().execute_reconstruction(source_files)
+            )
 
-    def reconstruct_save(self):
-        save_contexts(self.reconstructed_data)
+    def __reconstruct_service(self, source_files: list[SourceFile]) -> None:
+        if PluginType.SPRING in self.plugins:
+            results = SpringPlugin().execute_reconstruction(source_files)
+            contexts = JavaPlugin().reconstruct_dependencies(
+                source_files, results.complex_types
+            )
+            self.reconstructed_service.extend(results.microservices)
+            # Assign on the class, not the instance: the attribute is shared
+            # state of the singleton (see the note above).
+            ReconstructionHandler.reconstructed_data = self.__merge_contexts(
+                self.reconstructed_data, contexts
+            )
+
+        if PluginType.PROTOBUF in self.plugins:
+            self.reconstructed_service.extend(
+                ProtobufServicePlugin().execute_reconstruction(source_files)
+            )
+
+        if PluginType.NODE in self.plugins:
+            # What a Node service serves is attached to the microservice another
+            # plugin reconstructed for it, so this runs after they have.
+            node = NodePlugin()
+            node.execute_reconstruction(source_files)
+            node.assign_to(self.reconstructed_service)
+
+        if PluginType.COMMUNICATION in self.plugins:
+            # The calls of a service are meta-data on the microservice that
+            # makes them, so this runs once the service phase has found them.
+            plugin = CommunicationPlugin()
+            plugin.execute_reconstruction(source_files)
+            plugin.assign_to(self.reconstructed_service)
+
+    def __reconstruct_operation(self, source_files: list[SourceFile]) -> None:
+        if PluginType.DOCKER in self.plugins:
+            plugin = DockerPlugin()
+            plugin.execute_reconstruction(source_files)
+            # The microservices a container deploys are the result of the
+            # service phase, so they are assigned once that has run.
+            nodes = plugin.assign_deployed_services(self.reconstructed_service)
+            # Assign on the class, not the instance: the attribute is shared
+            # state of the singleton (see the note above).
+            ReconstructionHandler.reconstructed_operation = list(nodes)
+
+    def reconstruct_save(self, replace: bool = False) -> None:
+        """Save the reconstructed architecture information to the database.
+
+        Args:
+            replace (bool): Drop the reconstruction of earlier runs first
+        """
+        save_contexts(self.reconstructed_data, replace)
+        save_microservices(self.reconstructed_service, replace)
+        save_operation_nodes(self.reconstructed_operation, replace)
+
+    def __merge_contexts(
+        self, base: list[Context], other: list[Context]
+    ) -> list[Context]:
+        for ctx in other:
+            existing = next((c for c in base if c.name == ctx.name), None)
+            if existing is None:
+                base.append(ctx)
+                continue
+            for structure in ctx.data_structures:
+                if not any(s.name == structure.name for s in existing.data_structures):
+                    existing.data_structures.append(structure)
+            for collection in ctx.collections:
+                if not any(s.name == collection.name for s in existing.collections):
+                    existing.collections.append(collection)
+            for enum in ctx.enums:
+                if not any(e.name == enum.name for e in existing.enums):
+                    existing.enums.append(enum)
+        return base

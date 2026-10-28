@@ -14,11 +14,28 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: configure
-      run: ./configure
+    # Without this the first step fails with "make: uv: No such file or
+    # directory", which is how every run of this workflow has ended.
+    # Pinned to an exact release rather than a moving major tag: this project
+    # is research software whose results have to be reproducible, and a tag
+    # that moves under us is the opposite of that. Note there is no "v10"
+    # major tag upstream, only versioned ones.
+    - name: Install uv
+      uses: astral-sh/setup-uv@v10.3.0
+      with:
+        enable-cache: true
 
+    # pyproject.toml requires >= 3.12; uv reads it from there rather than
+    # guessing from the runner's default interpreter.
     - name: Install dependencies
-      run: make instakk
+      run: make init
 
-    - name: Run run
-      run: make run
+    # Lint, format, types and tests - the same target a developer runs, so a
+    # green pipeline and a green working copy mean the same thing.
+    #
+    # The old workflow ran "make html" and "make run" instead. Both were
+    # bound to fail: ADR-0005 removed Sphinx, and mrf without -p and -t
+    # raises rather than printing usage. Integration tests are left out
+    # deliberately - they need Docker and a database.
+    - name: Check
+      run: make check
