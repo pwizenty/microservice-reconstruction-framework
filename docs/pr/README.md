@@ -1,6 +1,7 @@
 # Pull request bodies
 
-One file per feature branch, named after it. Written when the branch was ready
+One file per feature branch, named after it, and one for the release of
+`dev` into `main`. Written when the branch was ready
 and kept so the text survives the session it was written in.
 
 They are a record of what a change claimed and what it was verified against, so
@@ -29,6 +30,7 @@ their own diffs stay free of files describing themselves.
 | `fix-ci-runs-the-checks.md` | `fix/ci-runs-the-checks` | `dev` |
 | `fix-runtime-operation-environment.md` | `fix/runtime-operation-environment` | `dev` |
 | `feat-node-transport-evidence.md` | `feat/node-transport-evidence` | `dev` |
+| `dev-to-main-release.md` | `dev` | `main` |
 
 `feat/node-transport-evidence` needs its LEMMA counterpart,
 `feat/node-communication-aspects`, merged beside it: the fact it reconstructs is
